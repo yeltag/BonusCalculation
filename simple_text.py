@@ -1,18 +1,32 @@
+# Create test_dialog.py to test basic functionality
 import sys
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel
+from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton
+
+
+class TestDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Test Dialog")
+        self.setFixedSize(300, 200)
+
+        layout = QVBoxLayout()
+
+        # Simple test fields
+        layout.addWidget(QLabel("Test Field 1:"))
+        layout.addWidget(QLineEdit())
+        layout.addWidget(QLabel("Test Field 2:"))
+        layout.addWidget(QLineEdit())
+
+        layout.addWidget(QPushButton("Test Button"))
+
+        self.setLayout(layout)
+
 
 def main():
     app = QApplication(sys.argv)
+    dialog = TestDialog()
+    dialog.exec()
 
-    window = QWidget()
-    window.setWindowTitle("My First Bonus System Window")
-    window.setGeometry(100,100,400,200)
-
-    Label = QLabel("Hello! PyQt6 is working!", window)
-    Label.move(100,80)
-
-    window.show()
-    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()

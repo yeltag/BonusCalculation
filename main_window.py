@@ -1,9 +1,18 @@
 import sys
 
 
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget,QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QLineEdit)
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget,QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QLineEdit, QDialog)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QIcon
+from pandas.io.formats.format import return_docstring
+from employee_dialog import EmployeeDialog
+from datetime import datetime, timedelta
+import json
+from config_manager import ConfigManager
+from config_dialog import ConfigDialog
+
+
+
 
 class MainWindow(QMainWindow):
     def __init__(self, username):
@@ -27,6 +36,16 @@ class MainWindow(QMainWindow):
 
         # file menu
         file_menu = menubar.addMenu("File")
+
+        # Add Configuration menu
+
+        config_menu = menubar.addMenu("Configuration")
+
+        config_action = QAction("System Configuration", self)
+
+        config_action = QAction("System Configurattion", self)
+        config_action.triggered.connect(self.open_configuration)
+        config_menu.addAction(config_action)
 
         logout_action = QAction("Logout", self)
         logout_action.triggered.connect(self.logout)
@@ -90,6 +109,13 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(self.search_input)
 
         controls_layout.addStretch()  # Push buttons to the right
+
+        # Delete Employee button
+        delete_btn = QPushButton("Delete Employee")
+        delete_btn.clicked.connect(self.delete_employee)
+        controls_layout.addWidget(delete_btn)
+
+        layout.addLayout(controls_layout)
 
         # Add Employee button
         add_btn = QPushButton ("Add New Employee")
@@ -173,15 +199,83 @@ class MainWindow(QMainWindow):
 
     def add_employee(self):
         """Open dialog to add new employee"""
-        QMessageBox.information(self, "Add Employee", "Add employee feature coming soon!\n\n"
-                                    "We'll build this in the next phase.")
+        dialog = EmployeeDialog(self)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_employee = dialog.get_employee_data()
+
+            # Check if employee ID already exists
+            existing_ids = [emp["id"] for emp in self.employees]
+            if new_employee["id"] in existing_ids:
+                QMessageBox.warning(self,"Error", f"Employee ID{new_employee["id"]} already exists!")
+                return
+
+            # add to our employee list
+
+            self.employees.append(new_employee)
+            self.refresh_employee_table()
+
+            # Show success message
+            QMessageBox.information(self,"Success",
+                               f"Employee {new_employee['first_name']} {new_employee['last_name']} added successfully!")
+
+            # Update status bar
+            self.statusBar().showMessage(f"Added new employee:{new_employee["id"]}")
 
     def edit_employee(self, index):
         """Edit employee when double-clicked"""
         row = index.row()
         employee_id = self.employee_table.item(row, 0).text()
-        QMessageBox.information(self, "Edit Employee", f"Edit employee {employee_id} coming soon!\n\n"
-                                    "We'll build this in the next phase.")
+
+        #Find the employee in our list
+        employee_to_edit = None
+        for emp in self.employees:
+            if emp["id"] == employee_id:
+                employee_to_edit = emp
+                break
+
+        if employee_to_edit:
+            dialog = EmployeeDialog(self, employee_to_edit)
+
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                updated_data = dialog.get_employee_data()
+
+                # Update the employee data
+                employee_to_edit.update(updated_data)
+                self.refresh_employee_table()
+
+                QMessageBox.information(self, "Success",
+                                        f'Employee {updated_data["first_name"]}{updated_data['last_name']} updated successfully!')
+
+                self.statusBar().showMessage(f'Updated employee: {employee_id}')
+        else:
+            QMessageBox.warning(self,"Error","Employee not found!")
+
+    def delete_employee(self):
+        """Delete selected employee"""
+        current_row = self.employee_table.currentRow()
+
+        if current_row == -1:
+            QMessageBox.warning(self,"Error", "Please select an employee to delete!")
+            return
+
+        employee_id = self.employee_table.item(current_row, 0).text()
+        employee_name = f"{self.employee_table.item(current_row, 1).text()} {self.employee_table.item(current_row, 2).text()}"
+
+        reply = QMessageBox.question(self, "Confirm Delete", f"Are you sure you want to delete employee:\n{employee_name}({employee_id})?",QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            # Remove from list
+            self.employees = [emp for emp in self.employees if emp["id"] !=employee_id]
+            self.refresh_employee_table()
+
+            QMessageBox.information(self,"Success",f"Employee {employee_name} deleted successfully!")
+            self.statusBar().showMessage(f"Deleted employee: {employee_id}")
+
+
+
+
+                
 
     def logout(self):
         """Logout and close application"""
@@ -191,5 +285,73 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self.close()
 
+    def open_configuration(self):
+        """Open configuration management dialog"""
+        dialog = ConfigDialog(self, self.config_manager)
+        dialog.exec()
 
+# Enhanced employee structure with history tracking
+def create_employee_with_history(self,employee_data):
+    """Create employee record with salary and department history"""
+    return {
+        **employee_data,
+        "salary_history":[
+            {
+                "salary": employee_data["salary"],
+                "effective_date": employee_data.get("hire_date", datetime.now().strftime("%Y-%m-%d")),
+                "end_date": None
+
+            }
+        ],
+        "department_history": [
+            {
+                "department":employee_data["department"],
+                "effective_date":employee_data.get("hire_date", datetime.now().strftime("%Y-%m-%d")),
+                "end_date": None
+            }
+        ],
+        "hire_date": employee_data.get("hire_date", datetime.now().strftime("%Y-%m-%d"))
+    }
+
+def get_current_salary(employee, target_date = None):
+    """Get effective salary for a specific date"""
+    if target_date is None:
+        target_date = datetime.now()
+
+    if isinstance(target_date, str):
+        target_date = datetime.strptime(target_date, "%Y-%m-%d")
+
+    for salary_record in employee.get("salary_history", []):
+        effective_date = datetime.strptime(salary_record["effective_date"], "%Y-%m-%d")
+        end_date = salary_record["end_date"]
+
+        if end_date:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+        if effective_date <= target_date and (end_date is None or target_date <= end_date):
+
+            return salary_record["salary"]
+
+    return employee.get("salary", 0)
+
+def get_current_department(employee, target_date = None):
+    """Get effective department for a specific date"""
+    if target_date is None:
+        target_date = datetime.now()
+
+    if isinstance(target_date, str):
+        target_date = datetime.strptime(target_date,"%Y-%m-%d")
+
+    for dept_record in employee.get("department_history", []):
+        effective_date = datetime.strptime(dept_record["effective_date"], "%Y-%m-%d")
+        end_date = dept_record["end_date"]
+
+        if end_date:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+        if effective_date <= target_date and (end_date is None or target_date <= end_date):
+
+            return dept_record["department"]
+
+    return employee.get("department","")
 
