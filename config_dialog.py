@@ -24,7 +24,7 @@ class ConfigDialog(QDialog):
 
         dept_layout.addWidget(QLabel("Manage Departments"))
         self.dept_list = QListWidget()
-        self.load_departments()
+        self.load_department()
         dept_layout.addWidget(self.dept_list)
 
         dept_buttons = QHBoxLayout()
@@ -35,7 +35,7 @@ class ConfigDialog(QDialog):
 
         dept_buttons.addWidget(add_dept_btn)
         dept_buttons.addWidget(remove_dept_btn)
-        dept_layout.addlayout(dept_buttons)
+        dept_layout.addLayout(dept_buttons)
 
         dept_tab.setLayout(dept_layout)
         tabs.addTab(dept_tab, "Departments")
@@ -73,17 +73,17 @@ class ConfigDialog(QDialog):
         departments = self.config_manager.get_departments()
         self.dept_list.addItems(departments)
 
-    def load_kips(self):
+    def load_kpis(self):
         self.kpi_list.clear()
-        kips = self.config_manager.get_kips()
+        kips = self.config_manager.get_kpis()
         for kpi in kips:
-            self.kpi_list.addOtem(f"{kpi["name]} ({kpi["calculation_method]})")
+            self.kpi_list.addItem(f"{kpi["name"]} ({kpi["calculation_method"]})")
 
     def add_department(self):
         department, ok = QInputDialog.getText(self, "Add Department", "Department name:")
         if ok and department:
             if self.config_manager.add_department(department.strip()):
-                self.load_departments()
+                self.load_department()
                 QMessageBox.information(self,"Success", "Department added successfully!")
 
             else:
@@ -96,7 +96,7 @@ class ConfigDialog(QDialog):
             reply = QMessageBox.question(self, "Confirm", f"Remove department:{department}?")
             if reply == QMessageBox.StandardButton.Yes:
                 if self. config_manager.remove_department(department):
-                    self.load_departmnets()
+                    self.load_department()
                     QMessageBox.information(self, "Success","Department removed!")
 
         else:

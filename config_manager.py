@@ -8,9 +8,9 @@ from PyQt6.QtCore import Qt
 
 
 class ConfigManager:
-    def __init__(selfself, config_file = "config.json"):
+    def __init__(self, config_file = "config.json"):
         self.config_file = config_file
-        self.config = self.load_congif()
+        self.config = self.load_config()
 
     def load_config(self):
         """Load configuration from JSON file"""

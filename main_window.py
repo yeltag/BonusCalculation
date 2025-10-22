@@ -18,6 +18,7 @@ class MainWindow(QMainWindow):
     def __init__(self, username):
         super().__init__()
         self.username = username
+        self.config_manager = ConfigManager()
         self.employees = []  #We'll replace this with database later
         self.setup_ui()
         self.load_sample_data()  # Load somesample employees for testing

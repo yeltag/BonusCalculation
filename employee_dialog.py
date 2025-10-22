@@ -6,10 +6,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 import re
 from datetime import datetime
+from employee_utils import create_employee_with_history, get_current_salary
+
+
 
 
 class EmployeeDialog(QDialog):
-    def __init__(self, parent=None, employee_data=None):
+    def __init__(self, parent=None, employee_data=None, config_manager = None):
         super().__init__(parent)
         self.employee_data = employee_data
         self.is_edit_mode = employee_data is not None
@@ -209,7 +212,7 @@ class EmployeeDialog(QDialog):
                 # Add new salary record
                 self.employee_data["salary_history"].append({
                     "salary": float(salary_text),
-                    "effective_date": self.salary_effective_date.date().toString("yyyy-MM-dd")
+                    "effective_date": self.salary_effective_date.date().toString("yyyy-MM-dd"),
                     "end_date": None
                 })
 
