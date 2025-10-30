@@ -1,7 +1,7 @@
 import sys
 
 
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget,QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QLineEdit, QDialog)
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget,QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QLineEdit, QDialog, QComboBox, QSpinBox)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QIcon
 from pandas.io.formats.format import return_docstring
@@ -11,6 +11,11 @@ import json
 from config_manager import ConfigManager
 from config_dialog import ConfigDialog
 
+from employee_utils import create_employee_with_history, get_current_salary
+from database import Database
+
+from bonus_calculator import BonusCalculator
+
 
 
 
@@ -19,9 +24,19 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.username = username
         self.config_manager = ConfigManager()
-        self.employees = []  #We'll replace this with database later
+        self.database = Database()
+        self.employees = []
         self.setup_ui()
-        self.load_sample_data()  # Load somesample employees for testing
+        self.load_employees_from_db()  # Load from database
+        self.test_kpi_system()
+
+    def load_employees_from_db(self):
+        """Load employees from database"""
+        self.employees = self.database.get_all_employees()
+        self.refresh_employee_table()
+
+        # Update status bar
+        self.statusBar().showMessage(f"Loaded {len(self.employees)} employees from database")
 
     def setup_ui(self):
         # Main window settings
@@ -82,10 +97,13 @@ class MainWindow(QMainWindow):
         # Tab 1: Employee Management
         self.setup_employee_tab()
 
-        # Tab 2: Dashboard (placeholder for now)
+        # Tab 2: Bonus Calculation
+        self.setup_bonus_calculation_tab()
+
+        # Tab 3: Dashboard (placeholder for now)
         dashboard_tab = QWidget()
         dashboard_layout = QVBoxLayout()
-        dashboard_layout.addWidget(QLabel("Dashboard - Overview of bonus calculation will be here"))
+        dashboard_layout.addWidget(QLabel("Dashboard - Reports and analyitcs coming soon"))
         dashboard_tab.setLayout(dashboard_layout)
         self.tabs.addTab(dashboard_tab, "Dashboard")
 
@@ -125,6 +143,14 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(controls_layout)
 
+        # Test button
+
+        test_kpi_btn = QPushButton("Test KPI System")
+        test_kpi_btn.clicked.connect(self.test_kpi_system)
+        controls_layout.addWidget(test_kpi_btn)
+
+        layout.addLayout(controls_layout)
+
         # Employee table
         self.employee_table = QTableWidget()
         self.employee_table.setColumnCount(6)
@@ -145,6 +171,75 @@ class MainWindow(QMainWindow):
         employee_tab.setLayout(layout)
         self.tabs.addTab(employee_tab, "Employee Management")
 
+    def setup_bonus_calculation_tab(self):
+        """Setup the bonus calculation tab"""
+        bonus_tab = QWidget()
+        layout = QVBoxLayout()
+
+        # Period selection
+        period_layout = QHBoxLayout()
+        period_layout.addWidget(QLabel("Calculation Period:"))
+
+        self.month_combo = QComboBox()
+        months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October","November","December"]
+        self.month_combo.addItems(months)
+        self.month_combo.setCurrentIndex(datetime.now().month - 1)
+        period_layout.addWidget(self.month_combo)
+
+        self.year_spin = QSpinBox()
+        self.year_spin.setRange(2020, 2030)
+        self.year_spin.setValue(datetime.now().year)
+        period_layout.addWidget(self.year_spin)
+
+        period_layout.addStretch()
+
+        # Calculate button
+        calculate_btn = QPushButton("Calculate Bonuses")
+        calculate_btn.clicked.connect(self.calculate_all_bonuses)
+        period_layout.addWidget(calculate_btn)
+
+        layout.addLayout(period_layout)
+
+        #Result table
+        self.bonus_table = QTableWidget()
+        self.bonus_table.setColumnCount(5)
+        self.bonus_table.setHorizontalHeaderLabels([
+            "Employee ID", "Name", "base Salary", "Bonus Amount", "Total"
+        ])
+
+        header = self.bonus_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+
+        layout.addWidget(self.bonus_table)
+
+        bonus_tab.setLayout(layout)
+        self.tabs.addTab(bonus_tab,"Bonus Calculation")
+
+    def calculate_all_bonuses(self):
+        """Calculate bonuses for all active employees"""
+        month = self.month_combo.currentIndex() + 1
+        year = self.year_spin.value()
+
+        calculator = BonusCalculator(self.database, self.config_manager)
+
+        results = []
+        for employee in self.employees:
+            if employee["status"] == "Active":
+                result = calculator.calculate_monthly_bonus(employee["id"],year, month)
+                if result:
+                    results.append(result)
+
+        # Display results
+        self.bonus_table.setRowCount(len(results))
+        for row, result in enumerate(results):
+            self.bonus_table.setItem(row, 0, QTableWidgetItem(result["employee_id"]))
+            self.bonus_table.setItem(row, 1, QTableWidgetItem(result["employee_name"]))
+            self.bonus_table.setItem(row, 2, QTableWidgetItem(f"{result["base_salary"]:,.2f}"))
+            self.bonus_table.setItem(row, 3, QTableWidgetItem(f"{result["calculated_bonus"]:,.2f}"))
+            total = result["base_salary"] +result["calculated_bonus"]
+            self.bonus_table.setItem(row, 4, QTableWidgetItem(f"{total:,.2f}"))
+        self.statusBar().showMessage(f"Calculated bonuses for {len(results)} employees")
+
     def create_status_bar(self):
         status_bar = QStatusBar()
         status_bar.showMessage(f"Logged in as: {self.username} | Ready")
@@ -152,12 +247,15 @@ class MainWindow(QMainWindow):
 
     def load_sample_data(self):
             """Load some sample employee data for testing"""
-            self.employees = [{"id": "EMP001", "first_name":"John", "last_name": "Smith","department":"Sales","salary":5000,"status": "Active"},
+            sample_employees_data = [{"id": "EMP001", "first_name":"John", "last_name": "Smith","department":"Sales","salary":5000,"status": "Active"},
                               {"id": "EMP002", "first_name": "Sarah", "last_name": "Johnson", "department": "Marketing", "salary": 4500, "status": "Active"},
                               {"id": "EMP003", "first_name": "Mike", "last_name": "Brown", "department": "IT", "salary": 6000, "status": "Active"},
                               {"id": "EMP004", "first_name": "Emily", "last_name": "Davis", "department": "HR", "salary": 4800, "status": "Inactive"},
                               {"id": "EMP005", "first_name": "David", "last_name": "Wilson", "department": "Sales", "salary": 5200, "status": "Active"}
                               ]
+            # Use create_employee_with_history for each sample employee
+            self.employees = [create_employee_with_history(emp) for emp in sample_employees_data]
+
             self.refresh_employee_table()
 
     def refresh_employee_table(self):
@@ -170,8 +268,14 @@ class MainWindow(QMainWindow):
             self.employee_table.setItem(row, 1, QTableWidgetItem(employee["first_name"]))
             self.employee_table.setItem(row,2, QTableWidgetItem(employee["last_name"]))
             self.employee_table.setItem(row, 3, QTableWidgetItem(employee["department"]))
-            self.employee_table.setItem(row, 4, QTableWidgetItem(f"${employee["salary"]:,.2f}"))
-            self.employee_table.setItem(row, 5, QTableWidgetItem(employee["status"]))
+
+
+            # Use get_current_salary to display the correct salary
+            current_salary = get_current_salary(employee)
+            self.employee_table.setItem(row,4,QTableWidgetItem(f"{current_salary:,.2f}"))
+
+            self.employee_table.setItem(row,5,QTableWidgetItem(employee["status"]))
+
 
     def filter_employees(self):
         """Filter employees based on search text"""
@@ -200,7 +304,7 @@ class MainWindow(QMainWindow):
 
     def add_employee(self):
         """Open dialog to add new employee"""
-        dialog = EmployeeDialog(self)
+        dialog = EmployeeDialog(self, None, self.config_manager)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_employee = dialog.get_employee_data()
@@ -211,10 +315,12 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self,"Error", f"Employee ID{new_employee["id"]} already exists!")
                 return
 
-            # add to our employee list
+            # Save to database
 
-            self.employees.append(new_employee)
-            self.refresh_employee_table()
+            self.database.save_employee(new_employee)
+
+            # Reload from database
+            self.load_employees_from_db()
 
             # Show success message
             QMessageBox.information(self,"Success",
@@ -236,19 +342,26 @@ class MainWindow(QMainWindow):
                 break
 
         if employee_to_edit:
-            dialog = EmployeeDialog(self, employee_to_edit)
+            # Load salary history for editing
+            salary_history = self.database.get_employee_salary_history(employee_id)
+            employee_to_edit['salary_history'] = salary_history
+
+            dialog = EmployeeDialog(self, employee_to_edit, self.config_manager)
 
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 updated_data = dialog.get_employee_data()
 
-                # Update the employee data
-                employee_to_edit.update(updated_data)
-                self.refresh_employee_table()
+               # Save to database
+                self.database.save_employee(updated_data)
+
+                # Reload from database
+
+                self.load_employees_from_db()
 
                 QMessageBox.information(self, "Success",
                                         f'Employee {updated_data["first_name"]}{updated_data['last_name']} updated successfully!')
 
-                self.statusBar().showMessage(f'Updated employee: {employee_id}')
+
         else:
             QMessageBox.warning(self,"Error","Employee not found!")
 
@@ -266,15 +379,49 @@ class MainWindow(QMainWindow):
         reply = QMessageBox.question(self, "Confirm Delete", f"Are you sure you want to delete employee:\n{employee_name}({employee_id})?",QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            # Remove from list
-            self.employees = [emp for emp in self.employees if emp["id"] !=employee_id]
-            self.refresh_employee_table()
+            # Delete from database
+
+            self.database.delete_employee(employee_id)
+
+            # Reload from database
+            self.load_employees_from_db()
 
             QMessageBox.information(self,"Success",f"Employee {employee_name} deleted successfully!")
             self.statusBar().showMessage(f"Deleted employee: {employee_id}")
 
+    def test_kpi_system(self):
+        """Test the KPI system directly"""
+        print("=== DIRECT KPI SYSTEM TEST ===")
 
+        # Test 1: Check config manager directly
+        print("1. Checking ConfigManager...")
+        kpis = self.config_manager.get_kpis()
+        print(f"   KPIs from config_manager: {len(kpis)}")
+        for kpi in kpis:
+            print(f"   - {kpi['name']} (Method: {kpi['calculation_method']})")
 
+        # Test 2: Test bonus calculator directly
+        print("2. Testing BonusCalculator directly...")
+        calculator = BonusCalculator(self.database, self.config_manager)
+
+        # Test on first employee
+        if self.employees:
+            employee = self.employees[0]
+            print(f"   Testing on employee: {employee['first_name']} {employee['last_name']}")
+            print(f"   Department: {employee['department']}")
+            print(f"   Salary: ${employee['salary']:,.2f}")
+
+            result = calculator.calculate_monthly_bonus(employee['id'], 2024, 10)
+            if result:
+                print(f"   Base Salary: ${result['base_salary']:,.2f}")
+                print(f"   Bonus Amount: ${result['calculated_bonus']:,.2f}")
+                print(f"   KPI Details: {result['kpi_details']}")
+            else:
+                print("   No result from bonus calculator!")
+        else:
+            print("   No employees to test!")
+
+        print("=== END KPI TEST ===")
 
                 
 
@@ -291,68 +438,4 @@ class MainWindow(QMainWindow):
         dialog = ConfigDialog(self, self.config_manager)
         dialog.exec()
 
-# Enhanced employee structure with history tracking
-def create_employee_with_history(self,employee_data):
-    """Create employee record with salary and department history"""
-    return {
-        **employee_data,
-        "salary_history":[
-            {
-                "salary": employee_data["salary"],
-                "effective_date": employee_data.get("hire_date", datetime.now().strftime("%Y-%m-%d")),
-                "end_date": None
-
-            }
-        ],
-        "department_history": [
-            {
-                "department":employee_data["department"],
-                "effective_date":employee_data.get("hire_date", datetime.now().strftime("%Y-%m-%d")),
-                "end_date": None
-            }
-        ],
-        "hire_date": employee_data.get("hire_date", datetime.now().strftime("%Y-%m-%d"))
-    }
-
-def get_current_salary(employee, target_date = None):
-    """Get effective salary for a specific date"""
-    if target_date is None:
-        target_date = datetime.now()
-
-    if isinstance(target_date, str):
-        target_date = datetime.strptime(target_date, "%Y-%m-%d")
-
-    for salary_record in employee.get("salary_history", []):
-        effective_date = datetime.strptime(salary_record["effective_date"], "%Y-%m-%d")
-        end_date = salary_record["end_date"]
-
-        if end_date:
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-
-        if effective_date <= target_date and (end_date is None or target_date <= end_date):
-
-            return salary_record["salary"]
-
-    return employee.get("salary", 0)
-
-def get_current_department(employee, target_date = None):
-    """Get effective department for a specific date"""
-    if target_date is None:
-        target_date = datetime.now()
-
-    if isinstance(target_date, str):
-        target_date = datetime.strptime(target_date,"%Y-%m-%d")
-
-    for dept_record in employee.get("department_history", []):
-        effective_date = datetime.strptime(dept_record["effective_date"], "%Y-%m-%d")
-        end_date = dept_record["end_date"]
-
-        if end_date:
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-
-        if effective_date <= target_date and (end_date is None or target_date <= end_date):
-
-            return dept_record["department"]
-
-    return employee.get("department","")
 

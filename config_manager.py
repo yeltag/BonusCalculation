@@ -20,22 +20,35 @@ class ConfigManager:
             "analysis fields":[
                 {"name":"Performance Rating","type":"number","min": 1, "max":5},
                 {"name": "Years of Service", "type":"number"},
-                {"name":"Education Level", "type":"dropdown", "opetions":["Bachelor","Master","PhD"]}
+
             ],
-            "kips":[
+            "kpis":[
                 {
-                    "name": "Sales Performance",
-                    "departments":["Sales"],
+                    "name": "Basic Performance Bonus",
+                    "description": "Standard performance bonus for all employees",
+                    "departments":[],
                     "calculation_method":"persentage",
-                    "formula":"base_salary * 0.1 * (sales_achivement / 100)",
-                    "weight": 0.3
+                    "percentage":0.10, # 10% bonus
+                    "weight": 1.0,
+                    "is_active": True
                 },
                 {
-                    "name": "project Completion",
-                    "departments": ["IT", "Operaions"],
+                    "name": "Sales Achievement Bonus",
+                    "description": "Additional bonus for sales team performance",
+                    "departments": ["Sales"],
+                    "calculation_method": "percentage",
+                    "percentage": 0.05, # 5% bonus for sales
+                    "weight": 1.0,
+                    "is_active": True
+                },
+                {
+                    "name": "Quarterly Fixed Bonus",
+                    "description": "Fixed quarterly performance bonus",
+                    "departments": [],  # All departments
                     "calculation_method": "fixed",
-                    "formula": "500 * completed_projects",
-                    "weight": 0.4
+                    "fixed_amount": 250,  # $250 fixed bonus
+                    "weight": 1.0,
+                    "is_active": True
                 }
             ]
 
@@ -43,11 +56,23 @@ class ConfigManager:
 
         try:
             if os.path.exists(self.config_file):
-                with open(self.config_file, "r") as f:
-                    return json.load(f)
+                with open(self.config_file, 'r') as f:
+                    user_config = json.load(f)
 
+                # Merge with default config to ensure all required keys exist
+                merged_config = default_config.copy()
+                merged_config.update(user_config)
+
+                # Ensure kpis key exists and has content
+                if 'kpis' not in user_config or not user_config['kpis']:
+                    merged_config['kpis'] = default_config['kpis']
+                    print("INFO: Added default KPIs to configuration")
+
+                return merged_config
             else:
+                # Create config file with defaults
                 self.save_config(default_config)
+                print("INFO: Created new config file with default KPIs")
                 return default_config
 
         except Exception as e:
@@ -88,7 +113,11 @@ class ConfigManager:
         return False
 
     def get_kpis(self):
-        return self.config.get("kpis",[])
+        kpis = self.config.get("kpis", [])
+        print(f"DEBUG: ConfigManager returning {len(kpis)} KPIs")
+        for kpi in kpis:
+            print(f"  - {kpi['name']} ({kpi['calculation_method']})")
+        return kpis
 
     def add_kpi(self, kpi_data):
         kpis = self.get_kpis()

@@ -31,7 +31,7 @@ def get_current_salary(employee,target_date = None):
         target_date = datetime.strptime(target_date, "%Y-%m-%d")
 
     for salary_record in employee.get("salary_history",[]):
-        effective_date = datetime.strptime(salary_record["effetive_date"], "%Y-%m-%d")
+        effective_date = datetime.strptime(salary_record["effective_date"], "%Y-%m-%d")
         end_date = salary_record["end_date"]
 
         if end_date:
@@ -59,7 +59,7 @@ def get_current_department(employee, target_date = None):
         if end_date:
             end_date = datetime.strptime(end_date, "%Y-%m-%d")
 
-        if effective_date <= target_date and (ned_date is None or target_date <= end_date):
+        if effective_date <= target_date and (end_date is None or target_date <= end_date):
 
             return dept_record["department"]
 

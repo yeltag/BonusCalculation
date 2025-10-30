@@ -27,6 +27,14 @@ class EmployeeDialog(QDialog):
         self.setFixedSize(500, 500)
 
     def setup_ui(self):
+        # Debug information
+        print(f"DEBUG: Config manager available:{self.config_manager is not None}")
+        if self.config_manager:
+            departments = self.config_manager.get_departments()
+            print(f"DEBUG: Departments from config:{departments}")
+        else:
+            print("DEBUG: No config manager provided")
+
         # Main layout - using simple QVBoxLayout that works
         main_layout = QVBoxLayout()
 
@@ -65,27 +73,40 @@ class EmployeeDialog(QDialog):
             self.hire_date_input.setDate(datetime.now())
         main_layout.addWidget(self.hire_date_input)
 
-
-        # Employee ID
-        main_layout.addWidget(QLabel("Employee ID:"))
-        self.id_input = QLineEdit()
-        self.id_input.setPlaceholderText("EMP001")
-        if self.is_edit_mode:
-            self.id_input.setText(self.employee_data.get("id", ""))
-            self.id_input.setEnabled(False)  # Can't edit ID
-        main_layout.addWidget(self.id_input)
-
         # Current Department
         main_layout.addWidget(QLabel("Current Department:"))
         self.department_combo = QComboBox()
+        departments = []
         if self.config_manager:
             departments = self.config_manager.get_departments()
             self.department_combo.addItems(departments)
+        else:
+            # Fallback departments if confiq_manager is not available
+            print("Warning: config manager not available, using default departments")
+
+        if not departments:
+            # If still no departments, add a default
+            departments = ["General"]
+            print("Warning: No departments found, using 'General'")
+
+        self.department_combo.addItems(departments)
+
+
         if self.is_edit_mode:
             current_dept = self.employee_data.get("department", "")
-            index = self.department_combo.findText(current_dept)
-            if index >= 0:
-                self.department_combo.setCurrentIndex(index)
+            if current_dept:
+                index = self.department_combo.findText(current_dept)
+                if index >= 0:
+                    self.department_combo.setCurrentIndex(index)
+                else:
+                     # If department doesn't exist in list, add it and select it
+                     self.department_combo.addItem(current_dept)
+                     self.department_combo.setCurrentIndex(self.department_combo.count() - 1)
+            else:
+                # If no current department, select fist one
+                self.department_combo.setCurrentIndex(0)
+
+
         main_layout.addWidget(self.department_combo)
 
         # Current Salary
@@ -100,7 +121,7 @@ class EmployeeDialog(QDialog):
         # Salary Effective Date (for changes)
 
         if self.is_edit_mode:
-            main_layout.addwidget(QLabel("Salary Effective Date:"))
+            main_layout.addWidget(QLabel("Salary Effective Date:"))
             self.salary_effective_date = QDateEdit()
             self.salary_effective_date.setCalendarPopup(True)
             self.salary_effective_date.setDate(datetime.now())
@@ -217,14 +238,15 @@ class EmployeeDialog(QDialog):
                 })
 
              # Update current data
-            self.employee_data.update(employee_data)
+            self.employee_data.update(self.employee_data)
         else:
             # New employee - create with history
-            self.employee_data = create_employee_with_history(employee_data)
+            self.employee_data = create_employee_with_history(self.employee_data)
 
         # Close dialog with success
         self.accept()
 
     def get_employee_data(self):
         """Return the employee data entered in the form"""
+        print(f"DEBUG: Returning employe data: {self.employee_data}")
         return self.employee_data
