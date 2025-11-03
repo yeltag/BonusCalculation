@@ -103,10 +103,10 @@ class BonusCalculator:
         print(f"DEBUG: Calculating KPI '{kpi['name']}' using method: {method}")
 
         if method == "percentage":
-            percentage = kpi.get('percentage', 0)
+            percentage = kpi.get('percentage', 0.1)
             bonus = base_salary * percentage
-            print(f"    Percentage: {percentage}")
-            print(f"    Calculation: ${base_salary} * {percentage} = ${bonus:,.2f}")
+
+            print(f"    Percentage Calculation: ${base_salary} * {percentage} = ${bonus:,.2f}")
             return bonus
 
         elif method == "fixed":
@@ -116,23 +116,34 @@ class BonusCalculator:
             return fixed_amount
 
         elif method == "formula":
-            # Custom formula - simplified for now
+
             formula = kpi.get("formula", "base_salary * 0.05")
             print(f"DEBUG: Formula: {formula}")
             try:
-                # In real implementation, you'd use a safe formula evaluator
-                # This is a simplified version
-                if "base_salary" in formula:
-                    result = eval(formula.replace("base_salary", str(base_salary)))
-                    return result
-                else:
-                    result = eval(formula)
-                print(f"DEBUG: Formula result: ${result:.2f}")
-                return result
+                # Create evaluation environment with employee data
+                eval_env = {
+                    "base_salary": base_salary,
+                    "performance_rating": 4, #  Default - we'll make this dynamic later
+                    "years_of_service": 2, #  Default - we'll make this dynamic later
+                    "sales_amount": 10000, #  Default - we'll make this dynamic later
+                    "completed_projects": 3, #  Default - we'll make this dynamic later
+                    "attendance_rate": 0.95, #  Default - we'll make this dynamic later
+                    "min": min,
+                    "max": max,
+                    "round": round,
+                    "sum": sum,
+                    "abs": abs
+                }
 
+                # Replace customs syntax
+                formula = formula.replace(" then ", " if ").replace(" else ", " else ")
+
+                result = eval(formula, {"__builtins__":{}},eval_env)
+                print(f"DEBUG: Formula result: {result:.2f}")
+                return result
             except Exception as e:
                 print(f"DEBUG: Formula error: {e}")
                 return 0
 
-        print(f"DEBUG: Unknown method, returning 0")
+        print(f"DEBUG: Formula error: {e}")
         return 0

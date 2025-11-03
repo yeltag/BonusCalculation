@@ -2,6 +2,7 @@ import sys
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QListWidget, QMessageBox, QTabWidget,
     QWidget, QInputDialog, QComboBox, QTextEdit)
+from kpi_editor_dialog import KPIEditorDialog
 
 class ConfigDialog(QDialog):
     def __init__(self, parent = None, config_manager = None):
@@ -103,23 +104,40 @@ class ConfigDialog(QDialog):
             QMessageBox.warning(self,"Error","Please select a department to remove!")
 
     def add_kpi(self):
-        #Simplified for now - we'll create a detailed KPI dialog later
-        name, ok = QInputDialog.getText(self, "Add KPI", "KPI name:")
-        if ok and name:
-            kpi_data = {
-                "name": name,
-                "departments":[],
-                "calculation_method": "percentage",
-                "formula": "base_salary * 0.1",
-                "weight": 0.3
-            }
-            if self.config_manager.add_kpi(kpi_data):
+        """Open KPI editor to add new KPI"""
+        dialog = KPIEditorDialog(self,None,self.config_manager)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_kpi = dialog.get_kpi_data()
+
+            # Add to configuration
+            if self.config_manager.add_kpi(new_kpi):
                 self.load_kpis()
-                QMessageBox.information(self, "Success","KPI added!")
+                QMessageBox.information(self,"Success","KPI added successfully!")
+            else:
+                QMessageBox.warning(self,"Error","Failed to add KPI")
 
     def edit_kpi(self):
-        # We'll implement detailed KPI editing later
-        QMessageBox.information(self,"Info", "Detailed KPI editor coming soon!")
+        """Edit selected KPI"""
+        current_row = self.kpi_list.currentRow()
+        if current_row >= 0:
+            kpis = self.config_manager.get_kpis()
+            kpi_to_edit = kpis[current_row]
+
+            dialog = KPIEditorDialog(self,kpi_to_edit, self.config_manager)
+
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                updated_kpi = dialog.get_kpi_data()
+
+                # Update the KPI
+                if self.config_manager.update_kpi(current_row, updated_kpi):
+                    self.load_kpis()
+                    QMessageBox.information(self, "Success","KPI updated successfully!")
+                else:
+                    QMessageBox.warning(self,"Error", "Failed to update KPI")
+        else:
+            QMessageBox.warning(self,"Error","Please select a KPI to edit")
+
 
     def remove_kpi(self):
         current_row = self.kpi_list.currentRow()
