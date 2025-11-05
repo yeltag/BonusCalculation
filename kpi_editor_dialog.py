@@ -120,7 +120,7 @@ class KPIEditorDialog(QDialog):
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("e.g., Sales Performance Bonus")
         name_layout.addWidget(self.name_input)
-        basic_layout.addlayout(name_layout)
+        basic_layout.addLayout(name_layout)
 
         #Description
         basic_layout.addWidget(QLabel("Description:"))
@@ -135,10 +135,10 @@ class KPIEditorDialog(QDialog):
         self.method_combo.addItems(["formula","percentage","fixed"])
         self.method_combo.currentTextChanged.connect(self.on_method_changed)
         method_layout.addWidget(self.method_combo)
-        basic_layout.addlayout(method_layout)
+        basic_layout.addLayout(method_layout)
 
         # Applicable Departments
-        basic_layout.addwidget(QLabel("Applicable Departments (leave emplty for all):"))
+        basic_layout.addWidget(QLabel("Applicable Departments (leave emplty for all):"))
         self.dept_list = QListWidget()
         if self.config_manager:
             departments = self.config_manager.get_departments()
@@ -169,7 +169,7 @@ class KPIEditorDialog(QDialog):
         self.formula_edit.setFont(font)
 
         # Apply syntax highlighting
-        self.highlighter = FormulaHighlighter(self.formula_edit.documents())
+        self.highlighter = FormulaHighlighter(self.formula_edit.document())
 
         formula_layout.addWidget(self.formula_edit)
 
@@ -185,7 +185,7 @@ class KPIEditorDialog(QDialog):
         self.fixed_input.setPlaceholderText("e.g., 500")
         self.simple_inputs_layout.addWidget(self.fixed_input)
 
-        formula_layout.addlayout(self.simple_inputs_layout)
+        formula_layout.addLayout(self.simple_inputs_layout)
 
         formula_group.setLayout(formula_layout)
         layout.addWidget(formula_group)
@@ -264,7 +264,7 @@ class KPIEditorDialog(QDialog):
             return panel
 
 
-    def on_mehod_changed(self, method):
+    def on_method_changed(self, method):
         """Show/hide simple inputs based on calculation method"""
         if method == "percentage":
             self.percentage_input.show()
@@ -347,17 +347,17 @@ class KPIEditorDialog(QDialog):
                                     f"test Data:\n"
                                     f"Base Salary: {test_data["base_salary"]:,.2f}\n"
                                     f"Performance Rating: {test_data["performance_rating"]}\n"
-                                    f"Years of Service: {test_data["years_if_service"]}\n\n"
+                                    f"Years of Service: {test_data["years_of_service"]}\n\n"
                                     f"Result: {result:,.2f}")
 
         except Exception as e:
             QMessageBox.warning(self, "Formula Error",
                                 f"Formula contains errors:\n\n{str(e)}")
 
-    def sefe_eval_formula(self, formula, variables):
+    def safe_eval_formula(self, formula, variables):
         """Safely evaluate a formula with given variables"""
         # Replace custom syntax with Python syntax
-        formula = formula.replca(" then ", " if ").replace(" else ", " else ")
+        formula = formula.replace(" then ", " if ").replace(" else ", " else ")
 
         # Create safe evaluation environment
         safe_dict = {
@@ -378,7 +378,7 @@ class KPIEditorDialog(QDialog):
         """Validate inputs and save KPI data"""
         # Get basix information
         name = self.name_input.text().strip()
-        description = self.desc_input.desc_input.text().strip()
+        description = self.desc_input.text().strip()
         method = self.method_combo.currentText()
 
         # Validation
@@ -418,9 +418,9 @@ class KPIEditorDialog(QDialog):
         else: #formula method
             formula = self.formula_edit.toPlainText().strip()
             if not formula:
-                errors.apeend("Formula is required for formula calculation method")
+                errors.append("Formula is required for formula calculation method")
             else:
-                ("Test formula with sample data")
+                print("Test formula with sample data")
                 try:
                     test_data = {"base_salary": 5000}
                     self.safe_eval_formula(formula, test_data)
@@ -440,7 +440,7 @@ class KPIEditorDialog(QDialog):
 
     def get_kpi_data(self):
         """Return the KPI data"""
-        return self kpi.data
+        return self.kpi_data
 
 
 

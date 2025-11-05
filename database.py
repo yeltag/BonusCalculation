@@ -81,6 +81,20 @@ class Database:
             )
             """)
 
+        # Variables
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS custom_variables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                display_name TEXT NOL NULL,
+                data_type TEXT NOT NULL, --"number", "text", "percentage", "currency"
+                default_value TEXT,
+                description TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL
+            )
+         ''')
+
         conn.commit()
         conn.close()
 
@@ -191,3 +205,114 @@ class Database:
         conn.close()
 
         return [{"salary":h[0],"effective_date":h[1],"end_date":h[2]} for h in history]
+
+    # Add these methods to your Database class in database.py
+
+    def save_kpi(self, kpi_data):
+        """Save KPI to database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        current_time = datetime.now().isoformat()
+
+        cursor.execute('''
+            INSERT OR REPLACE INTO kpis 
+            (name, description, calculation_method, formula, applicable_departments, weight, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            kpi_data['name'],
+            kpi_data.get('description', ''),
+            kpi_data['calculation_method'],
+            kpi_data.get('formula', ''),
+            json.dumps(kpi_data.get('applicable_departments', [])),
+            kpi_data.get('weight', 1.0),
+            1 if kpi_data.get('is_active', True) else 0,
+            current_time
+        ))
+
+        conn.commit()
+        conn.close()
+
+    def get_all_kpis(self):
+        """Get all KPIs from database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM kpis WHERE is_active = 1 ORDER BY name')
+        kpis = cursor.fetchall()
+
+        # Convert to list of dictionaries
+        kpi_list = []
+        for kpi in kpis:
+            kpi_list.append({
+                'id': kpi[0],
+                'name': kpi[1],
+                'description': kpi[2],
+                'calculation_method': kpi[3],
+                'formula': kpi[4],
+                'applicable_departments': json.loads(kpi[5]) if kpi[5] else [],
+                'weight': kpi[6],
+                'is_active': bool(kpi[7])
+            })
+
+        conn.close()
+        return kpi_list
+
+    def delete_kpi(self, kpi_id):
+        """Soft delete KPI (set is_active = 0)"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('UPDATE kpis SET is_active = 0 WHERE id = ?', (kpi_id,))
+        conn.commit()
+        conn.close()
+
+    def save_custom_variable(self, variable_data):
+        """Save custom variable to database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        current_time = datetime.now().isoformat()
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO custom_variables
+            (name, display_name, data_type, default_value, description, is_active< created_at
+            VALUES (?,?,?,?,?,?,?)
+            """, (
+            variable_data["name"],
+            variable_data["display_name"],
+            variable_data["data_type"],
+            variable_data.get("default_value",""),
+            variable_data.get("description",""),
+            1 if variable_data.get("is_active", True) else 0,
+            current_time
+        ))
+
+        conn.commit()
+        conn.close()
+
+
+    def get_all_custom_variables(self):
+        """Get all custom variables from database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM custom_variables WHERE is_active = 1 ORDER BY display_name')
+        variables = cursor.fetchall()
+
+        # Convert to list of dictionaries
+        variables_list = []
+        for var in variables:
+            variable_list = []
+            for var in variables:
+                variable_list.append({
+                    "id": var[0],
+                    "name": var[1],
+                    "display_name": var[2],
+                    "data_type": var[3],
+                    "description": var[5],
+                    "is_active": bool(var[6])
+                })
+
+        conn.commit()
+        conn.close()

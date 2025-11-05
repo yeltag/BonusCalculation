@@ -8,9 +8,10 @@ from PyQt6.QtCore import Qt
 
 
 class ConfigManager:
-    def __init__(self, config_file = "config.json"):
+    def __init__(self, config_file = "config.json", database = None):
         self.config_file = config_file
         self.config = self.load_config()
+        self.database = database
 
     def load_config(self):
         """Load configuration from JSON file"""
@@ -22,35 +23,7 @@ class ConfigManager:
                 {"name": "Years of Service", "type":"number"},
 
             ],
-            "kpis":[
-                {
-                    "name": "Basic Performance Bonus",
-                    "description": "Standard performance bonus for all employees",
-                    "departments":[],
-                    "calculation_method":"persentage",
-                    "percentage":0.10, # 10% bonus
-                    "weight": 1.0,
-                    "is_active": True
-                },
-                {
-                    "name": "Sales Achievement Bonus",
-                    "description": "Additional bonus for sales team performance",
-                    "departments": ["Sales"],
-                    "calculation_method": "percentage",
-                    "percentage": 0.05, # 5% bonus for sales
-                    "weight": 1.0,
-                    "is_active": True
-                },
-                {
-                    "name": "Quarterly Fixed Bonus",
-                    "description": "Fixed quarterly performance bonus",
-                    "departments": [],  # All departments
-                    "calculation_method": "fixed",
-                    "fixed_amount": 250,  # $250 fixed bonus
-                    "weight": 1.0,
-                    "is_active": True
-                }
-            ]
+            "kpis":[]
 
         }
 
@@ -63,21 +36,29 @@ class ConfigManager:
                 merged_config = default_config.copy()
                 merged_config.update(user_config)
 
-                # Ensure kpis key exists and has content
-                if 'kpis' not in user_config or not user_config['kpis']:
-                    merged_config['kpis'] = default_config['kpis']
-                    print("INFO: Added default KPIs to configuration")
+                if self.database:
+                    db_kpis = self.database.det.get_all_kpis()
+                    if db_kpis:
+                        merged_config["kpis"] = db+db_kpis
+                        print("INFO: Loaded KPIs from database")
+                    elif "kpis" not in user_config or not user_config["kpis"]:
+                        merged_config["kpis"] = default_config["kpis"]
+                else:
+                    print("WARNING: No database connection for KPIs")
 
                 return merged_config
+
             else:
                 # Create config file with defaults
                 self.save_config(default_config)
-                print("INFO: Created new config file with default KPIs")
+                print("INFO: Created new config file")
                 return default_config
 
         except Exception as e:
-            print(f"Error loading config: {e}")
+            print(f"Error loading config:{e}")
             return default_config
+
+
 
     def save_config(self, config = None):
         """Save configuration to JSON file"""
@@ -113,21 +94,55 @@ class ConfigManager:
         return False
 
     def get_kpis(self):
-        kpis = self.config.get("kpis", [])
-        print(f"DEBUG: ConfigManager returning {len(kpis)} KPIs")
-        for kpi in kpis:
-            print(f"  - {kpi['name']} ({kpi['calculation_method']})")
-        return kpis
+        """Get KPIs - prefer database, fallback to config file"""
+        if self.database:
+            # Try to get from database first
+            try:
+                db_kpis = self.database.get_all_kpis()
+                if db_kpis:
+                    # Update config with database KPIs
+                    self.config["kpis"] = db_kpis
+                    return db_kpis
+            except Exception as e:
+                print(f"Error getting KPIs from database: {e}")
+
+
+        # Fallback to config file
+        return self.config.get("kpis",[])
+
 
     def add_kpi(self, kpi_data):
+        """Add KPI to both database and config"""
+        # Add to database if available
+        if self.database:
+            try:
+                self.database.save_kpi(kpi_data)
+                print("INFO: KPI saved to database")
+            except Exception as e:
+                print(f"Error saving KPI to database:{e}")
+                return False
+
+        # Also update config file
         kpis = self.get_kpis()
         kpis.append(kpi_data)
         self.config["kpis"] = kpis
         return self.save_config()
 
     def update_kpi(self, index, kpi_data):
+        """Update KPI in both database and config"""
         kpis = self.get_kpis()
         if 0 <= index < len(kpis):
+            # Update in database if available
+            if self.database and "id" in kpis[index]:
+                try:
+                    kpi_data["id"] = kpis[index]["id"] # preserve ID
+                    self.database.save_kpi(kpi_data)
+                    print("INFO: KPI updated in database")
+                except Exception as e:
+                    print(f"error updating KPI in database: {e}")
+                    return False
+
+            # Update in config
             kpis[index] = kpi_data
             self.config["kpis"] = kpis
             return self.save_config()

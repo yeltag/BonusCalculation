@@ -23,12 +23,13 @@ class MainWindow(QMainWindow):
     def __init__(self, username):
         super().__init__()
         self.username = username
-        self.config_manager = ConfigManager()
         self.database = Database()
+        self.config_manager = ConfigManager(database = self.database)  # Pass database to config manager
+
         self.employees = []
         self.setup_ui()
         self.load_employees_from_db()  # Load from database
-        self.test_kpi_system()
+
 
     def load_employees_from_db(self):
         """Load employees from database"""
@@ -435,7 +436,9 @@ class MainWindow(QMainWindow):
 
     def open_configuration(self):
         """Open configuration management dialog"""
+        print("DEBUG: Opening configuration dialog...")
         dialog = ConfigDialog(self, self.config_manager)
-        dialog.exec()
+        result = dialog.exec()
+        print(f"DEBUG: Configuration dialog closed with results: {result}")
 
 

@@ -9,65 +9,103 @@ class ConfigDialog(QDialog):
         super().__init__(parent)
         self.config_manager = config_manager
         self.setWindowTitle("System Configuration")
-        self.setFixedSize(600, 500)
+        self.setFixedSize(700, 500)
         self.setup_ui()
+        self.test_buttons()
 
     def setup_ui(self):
-        layout = QVBoxLayout()
+        main_layout = QVBoxLayout()
 
         # Create tabs
-        tabs = QTabWidget()
+        self.tabs = QTabWidget()
 
-        #Departments tab
+        # Set up both tabs
+        self.setup_departments_tab()
+        self.setup_kpis_tab()
+
+        main_layout.addWidget(self.tabs)
+
+        # Close button
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        main_layout.addWidget(close_btn)
+        self.setLayout(main_layout)
+
+        self.setLayout(main_layout)
+
+    def setup_departments_tab(self):
+        """Setup the departments management tab"""
 
         dept_tab = QWidget()
         dept_layout = QVBoxLayout()
 
         dept_layout.addWidget(QLabel("Manage Departments"))
+
         self.dept_list = QListWidget()
         self.load_department()
+
         dept_layout.addWidget(self.dept_list)
 
-        dept_buttons = QHBoxLayout()
+        # Department buttons
+
+        dept_buttons_layout = QHBoxLayout()
         add_dept_btn = QPushButton("Add Department")
         add_dept_btn.clicked.connect(self.add_department)
+
         remove_dept_btn = QPushButton("Remove Selected")
         remove_dept_btn.clicked.connect(self.remove_department)
 
-        dept_buttons.addWidget(add_dept_btn)
-        dept_buttons.addWidget(remove_dept_btn)
-        dept_layout.addLayout(dept_buttons)
+        dept_buttons_layout.addWidget(add_dept_btn)
+        dept_buttons_layout.addWidget(remove_dept_btn)
+        dept_buttons_layout.addStretch()
+
+        dept_layout.addLayout(dept_buttons_layout)
 
         dept_tab.setLayout(dept_layout)
-        tabs.addTab(dept_tab, "Departments")
+        self.tabs.addTab(dept_tab, "Departments")
 
-        # KPIs Tab
+    def setup_kpis_tab(self):
+        """Setup the KPIs management tab"""
+
         kpi_tab = QWidget()
         kpi_layout = QVBoxLayout()
 
-        kpi_layout.addWidget(QLabel("Manage KPIs"))
+        kpi_layout.addWidget(QLabel("Manage KPIs (Key Performance Indicators)"))
+
         self.kpi_list = QListWidget()
         self.load_kpis()
         kpi_layout.addWidget(self.kpi_list)
 
-        kpi_buttons = QHBoxLayout()
+        kpi_buttons_layout = QHBoxLayout()
+
+        # ADD KPI BUTTON
+
         add_kpi_btn = QPushButton("Add KPI")
         add_kpi_btn.clicked.connect(self.add_kpi)
+        kpi_buttons_layout.addWidget(add_kpi_btn)
+
+        # Edit KPI button
         edit_kpi_btn = QPushButton("Edit Selected")
         edit_kpi_btn.clicked.connect(self.edit_kpi)
+        kpi_buttons_layout.addWidget(edit_kpi_btn)
+
+        # Remove KPI button
         remove_kpi_btn = QPushButton("Remove Selected")
         remove_kpi_btn.clicked.connect(self.remove_kpi)
+        kpi_buttons_layout.addWidget(remove_kpi_btn)
+
+        # Add stretch to push buttons to the left
+        kpi_buttons_layout.addStretch()
+
+        kpi_layout.addLayout(kpi_buttons_layout)
 
         kpi_tab.setLayout(kpi_layout)
-        tabs.addTab(kpi_tab, "KPIs")
+        self.tabs.addTab(kpi_tab, "KPIs")
 
-        layout.addWidget(tabs)
 
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn)
-        self.setLayout(layout)
+
+
 
     def load_department(self):
         self.dept_list.clear()
@@ -151,7 +189,15 @@ class ConfigDialog(QDialog):
                 self.config_manager.save_config()
                 self.load_kpis()
 
+    def test_buttons(self):
+        print("Testing KPIs tab buttons...")
+        print(f"KPI list has {self.kpi_list.count()} items")
 
+        # Check if buttons exist
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if widget:
+                print(f"Found widget: {type(widget).__name__}")
 
 
 

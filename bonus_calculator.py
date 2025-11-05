@@ -145,5 +145,5 @@ class BonusCalculator:
                 print(f"DEBUG: Formula error: {e}")
                 return 0
 
-        print(f"DEBUG: Formula error: {e}")
+        print(f"DEBUG: Unknown method, returning 0")
         return 0
