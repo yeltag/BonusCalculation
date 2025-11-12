@@ -47,10 +47,11 @@ class FormulaHighlighter(QSyntaxHighlighter):
                 self.setFormat(start, end - start, format)
 
 class KPIEditorDialog(QDialog):
-    def __init__(self, parent = None, kpi_data = None, config_manager = None):
+    def __init__(self, parent = None, kpi_data = None, config_manager = None, database = None):
         super().__init__(parent)
         self.kpi_data = kpi_data or {}
         self.config_manager = config_manager
+        self.database = database
         self.is_edit_mode = kpi_data is not None
 
         if self.is_edit_mode:
@@ -222,6 +223,33 @@ class KPIEditorDialog(QDialog):
         vars_group.setLayout(vars_layout)
         layout.addWidget(vars_group)
 
+        # Custom Variables Section - FIXED: Based on Bonus System Database
+        custom_vars_group = QGroupBox("Custom Variables")
+        custom_vars_layout = QVBoxLayout()
+
+        custom_variables = []
+
+        if self.database: # Only if we have database access
+            try:
+                custom_variables = self.database.get_custom_variables()
+            except Exception as e:
+                print(f"Error loading custom variables:{e} kpi_editor_dialog.py create_variables_panel line 236")
+                # Add a label to show error or empty state
+                error_label = QLabel("Unable to load custom variables")
+                custom_vars_layout.addWidget(error_label)
+        else:
+            no_db_label = QLabel("No database connection")
+            custom_vars_layout.addWidget(no_db_label)
+
+        for var in custom_variables:
+            var_btn = QPushButton(f"{var['display_name']} ({var['name']})")
+            var_btn.setToolTip(f"{var['description']}\nType:{var['data_type']}\nDefault:{var['default_value']}")
+            var_btn.clicked.connect(lambda checked, v=var['name']: self.insert_variable(v))
+            custom_vars_layout.addWidget(var_btn)
+        custom_vars_group.setLayout(custom_vars_layout)
+        layout.addWidget(custom_vars_group)
+
+
         # mathematical Functions
         funcs_group = QGroupBox("Mathematical Functions")
         funcs_layout = QVBoxLayout()
@@ -239,29 +267,32 @@ class KPIEditorDialog(QDialog):
             func_btn.clicked.connect(lambda checked, f = func_name:self.insert_function(f))
             funcs_layout.addWidget(func_btn)
 
-            # Formula Templates
-            templates_group = QGroupBox("Formula Templates")
-            templates_layout = QVBoxLayout()
+        funcs_group.setlayout(funcs_layout)
+        layout.addWidget(funcs_group)
 
-            templates = [
-                ("10% of Base Salary", "base_salary * 0.1"),
-                ("Performance Based", "base_salary * performance_rating * 0.05"),
-                ("Sales Commission", "sales_amount * 0.15"),
-                ("Seniority Bonus", "base_salary * years_of_service * 0.02"),
-                ("Conditional Bonus", "if sales_amount > 10000 then 500 else 200")
-            ]
+        # Formula Templates
+        templates_group = QGroupBox("Formula Templates")
+        templates_layout = QVBoxLayout()
 
-            for template_name, template_formula in templates:
-                template_btn = QPushButton(template_name)
-                template_btn.setToolTip(template_formula)
-                template_btn.clicked.connect(lambda checked, f=template_formula: self.insert_template(f))
-                templates_layout.addWidget(template_btn)
+        templates = [
+            ("10% of Base Salary", "base_salary * 0.1"),
+            ("Performance Based", "base_salary * performance_rating * 0.05"),
+            ("Sales Commission", "sales_amount * 0.15"),
+            ("Seniority Bonus", "base_salary * years_of_service * 0.02"),
+            ("Conditional Bonus", "if sales_amount > 10000 then 500 else 200")
+        ]
 
-            templates_group.setLayout(templates_layout)
-            layout.addWidget(templates_group)
+        for template_name, template_formula in templates:
+            template_btn = QPushButton(template_name)
+            template_btn.setToolTip(template_formula)
+            template_btn.clicked.connect(lambda checked, f=template_formula: self.insert_template(f))
+            templates_layout.addWidget(template_btn)
 
-            panel.setLayout(layout)
-            return panel
+        templates_group.setLayout(templates_layout)
+        layout.addWidget(templates_group)
+
+        panel.setLayout(layout)
+        return panel
 
 
     def on_method_changed(self, method):
@@ -370,6 +401,24 @@ class KPIEditorDialog(QDialog):
 
         }
         safe_dict.update(variables)
+
+        # Add custom variables with their default values
+        custom_variables = []
+        if self.database:
+            try:
+                custom_variables = self.database.get_custom_variables()
+            except Exception as e:
+                print(f"Error loading custom variables for evaluation:{e} KPI_editor_dialog save_eval_formula line 411")
+
+
+        for var in custom_variables:
+            if var.get('data_type','number') in ['number','percentage','currency']:
+                try:
+                    safe_dict[var['name']] = float(var.get('default_value',0))
+                except (ValueError, TypeError):
+                    safe_dict[var['name']] = 0
+            else:
+                safe_dict[var['name']] = var.get('default_value','')
 
         # Evaluate the formula
         return eval(formula, {"__builtins__": {}}, safe_dict)

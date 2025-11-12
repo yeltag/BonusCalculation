@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdi
     QPushButton, QListWidget, QMessageBox, QTabWidget,
     QWidget, QInputDialog, QComboBox, QTextEdit)
 from kpi_editor_dialog import KPIEditorDialog
+from variables_dialog import VariablesManagerDialog
 
 class ConfigDialog(QDialog):
     def __init__(self, parent = None, config_manager = None):
@@ -25,13 +26,35 @@ class ConfigDialog(QDialog):
 
         main_layout.addWidget(self.tabs)
 
+        # Variables Tab
+        variables_tab = QWidget()
+        variables_layout = QVBoxLayout()
+
+        variables_layout.addWidget(QLabel("Manage Custom Variables for KPI Formulas"))
+
+        # Info text
+        info_label = QLabel(
+            "Custom variables allow you to create flexible KPI formulas."
+            "Define variables like 'sales_target', 'customer_satisfaction', etc."
+            "Then use the in your KPI formulas."
+        )
+        info_label.setWordWrap(True)
+        variables_layout.addWidget(info_label)
+
+        # Manage Variables button
+        manage_vars_btn = QPushButton("Manage Custom Variables")
+        manage_vars_btn.clicked.connect(self.manage_variables)
+        variables_layout.addWidget(manage_vars_btn)
+
+        variables_layout.addStretch()
+        variables_tab.setLayout(variables_layout)
+        self.tabs.addTab(variables_tab, "Custom Variables")
+
         # Close button
 
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         main_layout.addWidget(close_btn)
-        self.setLayout(main_layout)
-
         self.setLayout(main_layout)
 
     def setup_departments_tab(self):
@@ -103,10 +126,6 @@ class ConfigDialog(QDialog):
         kpi_tab.setLayout(kpi_layout)
         self.tabs.addTab(kpi_tab, "KPIs")
 
-
-
-
-
     def load_department(self):
         self.dept_list.clear()
         departments = self.config_manager.get_departments()
@@ -143,7 +162,7 @@ class ConfigDialog(QDialog):
 
     def add_kpi(self):
         """Open KPI editor to add new KPI"""
-        dialog = KPIEditorDialog(self,None,self.config_manager)
+        dialog = KPIEditorDialog(self,None,self.config_manager, database = self.database)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_kpi = dialog.get_kpi_data()
@@ -176,7 +195,6 @@ class ConfigDialog(QDialog):
         else:
             QMessageBox.warning(self,"Error","Please select a KPI to edit")
 
-
     def remove_kpi(self):
         current_row = self.kpi_list.currentRow()
         if current_row >=0:
@@ -190,15 +208,23 @@ class ConfigDialog(QDialog):
                 self.load_kpis()
 
     def test_buttons(self):
-        print("Testing KPIs tab buttons...")
-        print(f"KPI list has {self.kpi_list.count()} items")
+        print("Testing KPIs tab buttons...  config_dialog.py  test_buttons line 211")
+        print(f"KPI list has {self.kpi_list.count()} items test_buttons line 212")
 
         # Check if buttons exist
         for i in range(self.layout().count()):
             widget = self.layout().itemAt(i).widget()
             if widget:
-                print(f"Found widget: {type(widget).__name__}")
+                print(f"Found widget  test_buttons Line 218: {type(widget).__name__}")
 
+    def manage_variables(self):
+        """Open custom variables management dialog"""
+        print(f"DEBUG manage_variables line 222: Database available: {self.config_manager.database is not None}")
 
+        if self.config_manager.database:
+            dialog = VariablesManagerDialog(self, self.config_manager.database)
+            dialog.exec()
+        else:
+            QMessageBox.warning(self,"Error","Database connection not available")
 
 

@@ -26,12 +26,21 @@ class BonusCalculator:
 
         print(f"DEBUG: {len(applicable_kpis)} KPIs applicable to {employee['first_name']} in {employee['department']}")
 
+        # Get custom variables
+        custom_variables = []
+        if self.database:
+            try:
+                custom_variables = self.database.get_all_custom_variables()
+            except Exception as e:
+                print(f"Error loading custom variables: {e}")
+
+
         # Calculate bonus based on KPIs
         total_bonus = 0
         kpi_details = []
 
         for kpi in applicable_kpis:
-            bonus_amount = self._calculate_kpi_bonus(kpi, monthly_salary, employee)
+            bonus_amount = self._calculate_kpi_bonus(kpi, monthly_salary, employee,custom_variables)
             print(f"DEBUG: KPI '{kpi['name']}' calculated bonus: ${bonus_amount:.2f}")
             total_bonus +=bonus_amount
 
@@ -134,6 +143,18 @@ class BonusCalculator:
                     "sum": sum,
                     "abs": abs
                 }
+
+                # Add custom variables
+
+                if custom_variables:
+                    for var in custom_variables:
+                        if var['data_type'] in ['number', 'percentage','currency']:
+                            try:
+                                eval_env[var['name']] = float(var.get('default_value',0))
+                            except (ValueError, TypeError):
+                                eval_env[var['name']]=0
+                        else:
+                            eval_env[var['name']] = var.get('default_value',"")
 
                 # Replace customs syntax
                 formula = formula.replace(" then ", " if ").replace(" else ", " else ")

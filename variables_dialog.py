@@ -30,7 +30,7 @@ class VariablesDialog(QDialog):
 
         # Display Name(user-friendly name)
         self.display_name_input = QLineEdit()
-        self.display_name_input.setPlaceholderText("e.g., Sales Terget Achievement")
+        self.display_name_input.setPlaceholderText("e.g., Sales Target Achievement")
         if self.is_edit_mode:
             self.display_name_input.setText(self.variable_data.get("display_name",""))
         form_layout.addRow("Display Name:",self.display_name_input)
@@ -76,8 +76,8 @@ class VariablesDialog(QDialog):
         examples_group = QGroupBox("Examples")
         examples_layout = QVBoxLayout()
         examples_layout.addWidget(QLabel("In formulas, use:<b>sales_target_achievement</b>"))
-        examples_layout.addWidget(QLabel("Example formula:<b>base_salary * sales(target_achievement * 0.1</b>"))
-        examples_layout.setLayout(examples_layout)
+        examples_layout.addWidget(QLabel("Example formula:<b>base_salary * sales_target_achievement * 0.1</b>"))
+        examples_group.setLayout(examples_layout)
         layout.addWidget(examples_group)
 
         # Buttons
@@ -98,7 +98,7 @@ class VariablesDialog(QDialog):
 
         layout.addLayout(button_layout)
 
-        self.setLayout(button_layout)
+        self.setLayout(layout)
 
     def validate_and_save(self):
         """Validate and save custom variable"""
@@ -112,13 +112,13 @@ class VariablesDialog(QDialog):
 
         # Validation
         if not display_name:
-            errors.append("Display name is required")
+            errors.append("Display name is required  validate_and_save line 115")
 
         if not name:
             errors.append("Variable name is required")
 
-        elif not re.match(r"^[a-z][a-z0-9]*$", name):
-            errors.append("Variable name must contain only lowercase letters, numbers, and underscores, and start with a letter")
+        elif not re.match(r"^[a-z][a-z0-9_]*$", name):
+            errors.append("Variable name must contain only lowercase letters, numbers, and underscores, and start with a letter   validate_and_save line 121")
 
         # Validate default value based on data type
         if default_value:
@@ -126,7 +126,7 @@ class VariablesDialog(QDialog):
                 try:
                     float(default_value)
                 except ValueError:
-                    errors.append(f"Default value must be a number for data type '{data_type}'")
+                    errors.append(f"Default value must be a number for data type '{data_type}'  validate_and_save line 129")
 
         if errors:
             error_msg = "Please fix the following errors:\n\n" + "\n".join(f"- {error}" for error in errors)
@@ -171,17 +171,17 @@ class VariablesManagerDialog(QDialog):
         buttons_layout = QHBoxLayout()
 
         add_btn = QPushButton("Add Variable")
-        add_btn.clicked.connect(self.add_variable)
+        add_btn.clicked.connect(self.add_variables)
 
         edit_btn = QPushButton("Edit Selected")
         edit_btn.clicked.connect(self.edit_variable)
 
-        remove_btn = QPushButton("Remobe Selected")
+        remove_btn = QPushButton("Remove Selected")
         remove_btn.clicked.connect(self.remove_variable)
 
         buttons_layout.addWidget(add_btn)
         buttons_layout.addWidget(edit_btn)
-        buttons_layout.addwidget(remove_btn)
+        buttons_layout.addWidget(remove_btn)
         buttons_layout.addStretch()
 
         layout.addLayout(buttons_layout)
@@ -194,15 +194,36 @@ class VariablesManagerDialog(QDialog):
         self.setLayout(layout)
 
     def load_variables(self):
-        """load customs variables from database"""
+        """load customs variables from database FIXED VERSION"""
         self.variables_list.clear()
-        if self.database:
+
+        if not self.database:
+            print("DEBUG: No database connection in VariablesManagerDialog")
+            self.variables_list.addItem("No database connection available")
+            return
+        try:
+
             variables = self.database.get_all_custom_variables()
+            print(f"DEBUG variables_dialog.py load_variables line 207: Retrieved {len(variables) if variables else 0} variables from database")  # Debug line
+
+            if not variables: # Handle case where variables is empty list
+                self.variables_list.addItem("No customs variables defined yet")
+                return
+            if variables is None: # Handle case where variables is None
+                print("DEBUG: Database returned None for variables")
+                self.variables_list.addItem("Error loading variables from database")
+                return
+
             for var in variables:
                 display_text = f"{var['display_name']}({var['name']}) - {var['data_type']}"
-                if var['default_value']:
+
+                if var.get('default_value'):
                     display_text += f"[Default: {var['default_value']}]"
                 self.variables_list.addItem(display_text)
+
+        except Exception as e:
+            print(f"DEBUG: Error in load variables:{e}")
+            self.variables_list.addItem(f"Error loading variables: {str(e)}")
 
     def add_variables(self):
         """Add new custom variable"""

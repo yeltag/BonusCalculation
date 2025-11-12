@@ -86,7 +86,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS custom_variables (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
-                display_name TEXT NOL NULL,
+                display_name TEXT NOT NULL,
                 data_type TEXT NOT NULL, --"number", "text", "percentage", "currency"
                 default_value TEXT,
                 description TEXT,
@@ -206,7 +206,7 @@ class Database:
 
         return [{"salary":h[0],"effective_date":h[1],"end_date":h[2]} for h in history]
 
-    # Add these methods to your Database class in database.py
+
 
     def save_kpi(self, kpi_data):
         """Save KPI to database"""
@@ -276,7 +276,7 @@ class Database:
 
         cursor.execute("""
             INSERT OR REPLACE INTO custom_variables
-            (name, display_name, data_type, default_value, description, is_active< created_at
+            (name, display_name, data_type, default_value, description, is_active, created_at)
             VALUES (?,?,?,?,?,?,?)
             """, (
             variable_data["name"],
@@ -292,27 +292,44 @@ class Database:
         conn.close()
 
 
-    def get_all_custom_variables(self):
-        """Get all custom variables from database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+    def get_custom_variables(self):
+        """Get all custom variables from database FIXED VERSION"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
 
-        cursor.execute('SELECT * FROM custom_variables WHERE is_active = 1 ORDER BY display_name')
-        variables = cursor.fetchall()
 
-        # Convert to list of dictionaries
-        variables_list = []
-        for var in variables:
+            # First, check if table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='custom_variables'")
+            table_exists = cursor.fetchone()
+
+            if not table_exists:
+                print("DEBUG: custom_variables table does not exist, ctreating it...")
+                self.init_database() # Re-initialize to create missing table
+                return [] # Return empty list since we just created the table
+
+            cursor.execute('SELECT * FROM custom_variables WHERE is_active = 1 ORDER BY display_name')
+            variables = cursor.fetchall()
+
+            # Convert to list of dictionaries
             variable_list = []
             for var in variables:
-                variable_list.append({
-                    "id": var[0],
-                    "name": var[1],
-                    "display_name": var[2],
-                    "data_type": var[3],
-                    "description": var[5],
-                    "is_active": bool(var[6])
-                })
+                variable_list = []
+                for var in variables:
+                    variable_list.append({
+                        "id": var[0],
+                        "name": var[1],
+                        "display_name": var[2],
+                        "data_type": var[3],
+                        "description": var[5],
+                        "is_active": bool(var[6])
+                    })
 
-        conn.commit()
-        conn.close()
+
+            conn.close()
+            print(f"DEBUG: Returning {len(variable_list)} custom variables")
+            return variable_list
+
+        except Exception as e:
+            print(f"ERROR in get_all_custom_variables: {e}")
+            return []  # Return empty list instead of None

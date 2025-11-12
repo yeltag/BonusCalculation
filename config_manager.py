@@ -55,7 +55,7 @@ class ConfigManager:
                 return default_config
 
         except Exception as e:
-            print(f"Error loading config:{e}")
+            print(f"Error loading config load_config line 58:{e}")
             return default_config
 
 
@@ -70,7 +70,7 @@ class ConfigManager:
             return True
 
         except Exception as e:
-            print(f"Error saving config: {e}")
+            print(f"Error saving config save_config line 73: {e}")
             return False
 
 
@@ -104,7 +104,7 @@ class ConfigManager:
                     self.config["kpis"] = db_kpis
                     return db_kpis
             except Exception as e:
-                print(f"Error getting KPIs from database: {e}")
+                print(f"Error getting KPIs from database get_kpis line 107: {e}")
 
 
         # Fallback to config file
@@ -119,7 +119,7 @@ class ConfigManager:
                 self.database.save_kpi(kpi_data)
                 print("INFO: KPI saved to database")
             except Exception as e:
-                print(f"Error saving KPI to database:{e}")
+                print(f"Error saving KPI to database add_kpi line 122:{e}")
                 return False
 
         # Also update config file
@@ -139,7 +139,7 @@ class ConfigManager:
                     self.database.save_kpi(kpi_data)
                     print("INFO: KPI updated in database")
                 except Exception as e:
-                    print(f"error updating KPI in database: {e}")
+                    print(f"error updating KPI in database update_kpi line 142: {e}")
                     return False
 
             # Update in config

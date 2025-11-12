@@ -15,6 +15,7 @@ from employee_utils import create_employee_with_history, get_current_salary
 from database import Database
 
 from bonus_calculator import BonusCalculator
+import sqlite3
 
 
 
@@ -29,6 +30,8 @@ class MainWindow(QMainWindow):
         self.employees = []
         self.setup_ui()
         self.load_employees_from_db()  # Load from database
+        # Debug: Check database tables
+        self.debug_database_table()  # Add this line temporarily
 
 
     def load_employees_from_db(self):
@@ -440,5 +443,34 @@ class MainWindow(QMainWindow):
         dialog = ConfigDialog(self, self.config_manager)
         result = dialog.exec()
         print(f"DEBUG: Configuration dialog closed with results: {result}")
+
+    def debug_database_table(self):
+        """Debug method to check if database table exists"""
+        print("=== DATABASE DEBUG ===")
+
+        if not self.database:
+            print("EEROR: No database connection")
+            return
+        try:
+            # Test connection by checking if tables exist
+            conn = sqlite3.connect("bonus_system.db")
+            cursor = conn.cursor()
+
+            # Check if custom_variables table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='custom_variables'")
+            table_exists = cursor.fetchone()
+            print(f"Custom variables table exists:{table_exists is not None}")
+
+            # Check all tables
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            print("All tables in database:")
+            for table in tables:
+                print(f" - {table[0]}")
+
+            conn.close()
+
+        except Exception as e:
+            print(f"Error checking database:{e}")
 
 
