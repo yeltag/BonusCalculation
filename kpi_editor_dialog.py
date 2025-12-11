@@ -1,7 +1,7 @@
 import sys
 from PyQt6.QtWidgets import(QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QTextEdit,
     QPushButton, QComboBox, QListWidget, QListWidgetItem, QMessageBox,
-    QGroupBox, QSplitter, QFrame)
+    QGroupBox, QSplitter, QFrame, QScrollArea)
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QPalette
@@ -9,19 +9,20 @@ import re
 
 class FormulaHighlighter(QSyntaxHighlighter):
     """Syntax highlighter for KPI formulas"""
+
     def __init__(self, document):
         super().__init__(document)
 
         # Define formatting rules
         self.highlighting_rules = []
 
-        # Variable format (blue)
+        # Variable format (blue) - only base_salary
         variable_format = QTextCharFormat()
-        variable_format.setForeground(QColor(0,0,255))
+        variable_format.setForeground(QColor(0, 0, 255))
         variable_format.setFontWeight(QFont.Weight.Bold)
-        self.highlighting_rules.append((r'\b(base_salary|performance_rating|years_of_service|sales_amount|completed_projects)\b', variable_format))
+        self.highlighting_rules.append((r'\b(base_salary)\b', variable_format))
 
-        # Operator format(red)
+        # Operator format (red)
         operator_format = QTextCharFormat()
         operator_format.setForeground(QColor(255, 0, 0))
         operator_format.setFontWeight(QFont.Weight.Bold)
@@ -54,13 +55,25 @@ class KPIEditorDialog(QDialog):
         self.database = database
         self.is_edit_mode = kpi_data is not None
 
+        # If database is None, try to get it from parent (ConfigDialog)
+        if self.database is None and parent is not None:
+            if hasattr(parent, 'database'):
+                self.database = parent.database
+                print(f"DEBUG: Got database from parent: {self.database}")
+            elif hasattr(parent, 'config_manager') and hasattr(parent.config_manager, 'database'):
+                self.database = parent.config_manager.database
+                print(f"DEBUG: Got database from parent.config_manager: {self.database}")
+
+        self.is_edit_mode = kpi_data is not None
+
         if self.is_edit_mode:
             self.setWindowTitle("Edit KPI formula")
         else:
             self.setWindowTitle("Create New KPI Formula")
 
         self.setup_ui()
-        self.setFixedSize(800,600)
+        self.setFixedSize(900,650)
+        self.resize(1000,700)
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
@@ -77,7 +90,11 @@ class KPIEditorDialog(QDialog):
         splitter.addWidget(right_panel)
 
         # Set splitter proportions
-        splitter.setSizes([500,300])
+        splitter.setSizes([600,400])
+
+        # Set stretch factors to make left panel more important
+        splitter.setStretchFactor(0, 2)  # Left panel gets 2/3 of space
+        splitter.setStretchFactor(1, 1)  # Right panel gets 1/3 of space
 
         main_layout.addWidget(splitter)
 
@@ -162,7 +179,10 @@ class KPIEditorDialog(QDialog):
             "Examples:\n"
             "• base_salary * 0.1  # 10% of base salary\n"
             "• base_salary * performance_rating * 0.05  # Performance-based\n"
-            "• if sales_amount > 10000 then 500 else 200  # Conditional bonus"
+            "• if sales_amount > 10000 then 500 else 200  # Conditional bonus\n\n"
+            "Note: Only 'base_salary' is built-in. Other variables like\n"
+            "'performance_rating', 'sales_amount', etc. must be created\n"
+            "as custom variables in Configuration."
         )
 
         # Set monospace forn for formula editor
@@ -196,42 +216,52 @@ class KPIEditorDialog(QDialog):
 
     def create_variables_panel(self):
         """Create the variables and functions panel"""
+        print(f"DEBUG create_variables_panel kpi_editor line 207: self.database = {self.database}")
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setMaximumWidth(400)  # Limit maximum width
+
         panel = QFrame()
         layout = QVBoxLayout()
 
-        #Available Variables
-        vars_group = QGroupBox("Available Variables")
-        vars_layout = QVBoxLayout()
+        # Set spacing and margins to be more compact
+        layout.setSpacing(5)
+        layout.setContentsMargins(5, 5, 5, 5)
 
+        # Available Variables - ONLY base_salary is built-in
+        vars_group = QGroupBox("Built-in Variables")
+        vars_layout = QVBoxLayout()
+        vars_layout.setSpacing(3)  # Reduced spacing between buttons
+
+        # ONLY base_salary is truly built-in from employee data
         variables = [
-            ("base_salary", "Employee's monthly base salary"),
-            ("performance_rating", "Performance rating (1-5 scale)"),
-            ("years_of_service", "Years worked at company"),
-            ("sales_amount", "Monthly sales amount"),
-            ("completed_projects", "Number of completed projects"),
-            ("attendance_rate", "Attendance percentage (0-1)"),
-            ("team_size", "Number of people in team"),
-            ("revenue_generated", "Revenue generated this month")
+            ("base_salary", "Employee's monthly base salary (from employee record)"),
         ]
 
         for var_name, var_desc in variables:
             var_btn = QPushButton(f"{var_name}")
             var_btn.setToolTip(var_desc)
-            var_btn.clicked.connect(lambda checked, v = var_name: self.insert_variable(v))
+            var_btn.setMaximumHeight(25)  # Set fixed height for buttons
+            var_btn.clicked.connect(lambda checked, v=var_name: self.insert_variable(v))
             vars_layout.addWidget(var_btn)
 
         vars_group.setLayout(vars_layout)
         layout.addWidget(vars_group)
 
-        # Custom Variables Section - FIXED: Based on Bonus System Database
+        # Custom Variables Section
         custom_vars_group = QGroupBox("Custom Variables")
         custom_vars_layout = QVBoxLayout()
+        custom_vars_layout.setSpacing(3)
 
         custom_variables = []
 
-        if self.database: # Only if we have database access
+        if self.database:  # Only if we have database access
             try:
                 custom_variables = self.database.get_custom_variables()
+                print("DEBUG: Custom variables from database kpi_editor_dialog create_variable panel line 235:")
+                for i, var in enumerate(custom_variables):
+                    print(f"  {i}: {var}")
             except Exception as e:
                 print(f"Error loading custom variables:{e} kpi_editor_dialog.py create_variables_panel line 236")
                 # Add a label to show error or empty state
@@ -241,18 +271,30 @@ class KPIEditorDialog(QDialog):
             no_db_label = QLabel("No database connection")
             custom_vars_layout.addWidget(no_db_label)
 
-        for var in custom_variables:
-            var_btn = QPushButton(f"{var['display_name']} ({var['name']})")
-            var_btn.setToolTip(f"{var['description']}\nType:{var['data_type']}\nDefault:{var['default_value']}")
-            var_btn.clicked.connect(lambda checked, v=var['name']: self.insert_variable(v))
-            custom_vars_layout.addWidget(var_btn)
+        if not custom_variables:
+            no_vars_label = QLabel("No custom variables defined.\nCreate them in Configuration → Custom Variables.")
+            custom_vars_layout.addWidget(no_vars_label)
+        else:
+            for var in custom_variables:
+                # Use get() method with default values to avoid KeyError
+                display_name = var.get('display_name', var.get('name', 'Unknown'))
+                description = var.get('description', 'No description available')
+                data_type = var.get('data_type', 'unknown')
+                default_value = var.get('default_value', 'Not set')
+
+                var_btn = QPushButton(f"{display_name}")
+                var_btn.setToolTip(f"{description}\nType: {data_type}\nDefault: {default_value}")
+                var_btn.setMaximumHeight(25)  # Fixed height
+                var_btn.clicked.connect(lambda checked, v=var.get('name', 'unknown'): self.insert_variable(v))
+                custom_vars_layout.addWidget(var_btn)
+
         custom_vars_group.setLayout(custom_vars_layout)
         layout.addWidget(custom_vars_group)
 
-
-        # mathematical Functions
-        funcs_group = QGroupBox("Mathematical Functions")
+        # Mathematical Functions
+        funcs_group = QGroupBox("Functions")
         funcs_layout = QVBoxLayout()
+        funcs_layout.setSpacing(3)
 
         functions = [
             ("min(x, y)", "Returns smaller of two values"),
@@ -264,35 +306,41 @@ class KPIEditorDialog(QDialog):
         for func_name, func_desc in functions:
             func_btn = QPushButton(func_name)
             func_btn.setToolTip(func_desc)
-            func_btn.clicked.connect(lambda checked, f = func_name:self.insert_function(f))
+            func_btn.clicked.connect(lambda checked, f=func_name: self.insert_function(f))
             funcs_layout.addWidget(func_btn)
 
-        funcs_group.setlayout(funcs_layout)
+        funcs_group.setLayout(funcs_layout)
         layout.addWidget(funcs_group)
 
-        # Formula Templates
-        templates_group = QGroupBox("Formula Templates")
+        # Formula Templates - Updated to only use base_salary
+        templates_group = QGroupBox("Templates")
         templates_layout = QVBoxLayout()
+        templates_layout.setSpacing(3)
 
         templates = [
             ("10% of Base Salary", "base_salary * 0.1"),
             ("Performance Based", "base_salary * performance_rating * 0.05"),
             ("Sales Commission", "sales_amount * 0.15"),
             ("Seniority Bonus", "base_salary * years_of_service * 0.02"),
-            ("Conditional Bonus", "if sales_amount > 10000 then 500 else 200")
+            ("Conditional Bonus", "if sales_target > 10000 then 500 else 200")
         ]
 
         for template_name, template_formula in templates:
             template_btn = QPushButton(template_name)
             template_btn.setToolTip(template_formula)
+            template_btn.setMaximumHeight(25)
             template_btn.clicked.connect(lambda checked, f=template_formula: self.insert_template(f))
             templates_layout.addWidget(template_btn)
 
         templates_group.setLayout(templates_layout)
         layout.addWidget(templates_group)
 
+        # Add stretch to push everything to the top
+        layout.addStretch()
+
         panel.setLayout(layout)
-        return panel
+        scroll_area.setWidget(panel)
+        return scroll_area
 
 
     def on_method_changed(self, method):
@@ -335,7 +383,7 @@ class KPIEditorDialog(QDialog):
 
         # Set formula or simple values
         if self.kpi_data.get("calculation_method") == "percentage":
-            self.percentage_input.setText(str(self.kpi_data.get("persentage","")))
+            self.percentage_input.setText(str(self.kpi_data.get("percentage","")))
         elif self.kpi_data.get("calculation_method") == "fixed":
             self.fixed_input.setText(str(self.kpi_data.get("fixed_amount","")))
         else:
@@ -398,34 +446,51 @@ class KPIEditorDialog(QDialog):
             "sum": sum,
             "abs": abs,
             "__builtins__": {}
-
         }
+
+        # Add base_salary from test data (if provided) or use default
         safe_dict.update(variables)
 
-        # Add custom variables with their default values
+        # If base_salary not provided, use default
+        if "base_salary" not in safe_dict:
+            safe_dict["base_salary"] = 5000  # Default for testing
+
+        # Add custom variables from database with their default values
         custom_variables = []
         if self.database:
             try:
                 custom_variables = self.database.get_custom_variables()
             except Exception as e:
-                print(f"Error loading custom variables for evaluation:{e} KPI_editor_dialog save_eval_formula line 411")
-
+                print(f"Error loading custom variables for evaluation:{e}")
 
         for var in custom_variables:
-            if var.get('data_type','number') in ['number','percentage','currency']:
-                try:
-                    safe_dict[var['name']] = float(var.get('default_value',0))
-                except (ValueError, TypeError):
-                    safe_dict[var['name']] = 0
-            else:
-                safe_dict[var['name']] = var.get('default_value','')
+            var_name = var.get('name')
+            # Don't overwrite base_salary
+            if var_name != "base_salary":
+                data_type = var.get('data_type', 'number')
+                if data_type in ['number', 'percentage', 'currency']:
+                    try:
+                        # Clean the value
+                        default_val = var.get('default_value', '0')
+                        clean_val = str(default_val).replace('$', '').replace(',', '').replace('%', '')
+                        safe_dict[var_name] = float(clean_val) if clean_val else 0.0
+                    except (ValueError, TypeError):
+                        safe_dict[var_name] = 0.0
+                else:
+                    safe_dict[var_name] = var.get('default_value', '')
 
         # Evaluate the formula
-        return eval(formula, {"__builtins__": {}}, safe_dict)
+        try:
+            return eval(formula, {"__builtins__": {}}, safe_dict)
+        except Exception as e:
+            print(f"Error evaluating formula: {e}")
+            print(f"Formula: {formula}")
+            print(f"Available variables: {list(safe_dict.keys())}")
+            raise
 
     def validate_and_save(self):
         """Validate inputs and save KPI data"""
-        # Get basix information
+        # Get basic information
         name = self.name_input.text().strip()
         description = self.desc_input.text().strip()
         method = self.method_combo.currentText()
@@ -438,15 +503,19 @@ class KPIEditorDialog(QDialog):
         # Get selected departments
         selected_depts = [item.text() for item in self.dept_list.selectedItems()]
 
-        # prepare KPI data based on method
+        # Prepare KPI data based on method
         kpi_data = {
             "name": name,
             "description": description,
             "calculation_method": method,
             "applicable_departments": selected_depts,
-            "weight": 1.0, #Default weight
+            "weight": 1.0,  # Default weight
             "is_active": True
         }
+
+        # PRESERVE THE ID IF WE'RE IN EDIT MODE
+        if self.is_edit_mode and "id" in self.kpi_data:
+            kpi_data["id"] = self.kpi_data["id"]
 
         if method == "percentage":
             try:
@@ -454,7 +523,7 @@ class KPIEditorDialog(QDialog):
                 kpi_data["percentage"] = percentage
                 kpi_data["formula"] = f"base_salary * {percentage}"
             except ValueError:
-                errors.append("percentage must be a valid number")
+                errors.append("Percentage must be a valid number")
 
         elif method == "fixed":
             try:
@@ -464,24 +533,27 @@ class KPIEditorDialog(QDialog):
             except ValueError:
                 errors.append("Fixed amount must be a valid number")
 
-        else: #formula method
+        else:  # formula method
             formula = self.formula_edit.toPlainText().strip()
             if not formula:
                 errors.append("Formula is required for formula calculation method")
             else:
-                print("Test formula with sample data")
+                print("Testing formula with sample data")
                 try:
+                    # Test with only base_salary (custom variables added automatically)
                     test_data = {"base_salary": 5000}
-                    self.safe_eval_formula(formula, test_data)
+                    result = self.safe_eval_formula(formula, test_data)
+                    print(f"DEBUG: Formula test passed with result: {result}")
                     kpi_data["formula"] = formula
 
                 except Exception as e:
+                    print(f"DEBUG: Formula test failed with error: {e}")
                     errors.append(f"Formula contains errors: {str(e)}")
 
         # Show errors if any
         if errors:
             error_msg = "Please fix the following errors:\n\n" + "\n".join(f"- {error}" for error in errors)
-            QMessageBox.warning(self,"Validation Error", error_msg)
+            QMessageBox.warning(self, "Validation Error", error_msg)
             return
 
         self.kpi_data = kpi_data

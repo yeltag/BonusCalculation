@@ -10,8 +10,9 @@ from PyQt6.QtCore import Qt
 class ConfigManager:
     def __init__(self, config_file = "config.json", database = None):
         self.config_file = config_file
-        self.config = self.load_config()
         self.database = database
+        self.config = self.load_config()
+
 
     def load_config(self):
         """Load configuration from JSON file"""
@@ -37,9 +38,9 @@ class ConfigManager:
                 merged_config.update(user_config)
 
                 if self.database:
-                    db_kpis = self.database.det.get_all_kpis()
+                    db_kpis = self.database.get_all_kpis()
                     if db_kpis:
-                        merged_config["kpis"] = db+db_kpis
+                        merged_config["kpis"] = db_kpis
                         print("INFO: Loaded KPIs from database")
                     elif "kpis" not in user_config or not user_config["kpis"]:
                         merged_config["kpis"] = default_config["kpis"]
@@ -130,21 +131,58 @@ class ConfigManager:
 
     def update_kpi(self, index, kpi_data):
         """Update KPI in both database and config"""
-        kpis = self.get_kpis()
-        if 0 <= index < len(kpis):
-            # Update in database if available
-            if self.database and "id" in kpis[index]:
-                try:
-                    kpi_data["id"] = kpis[index]["id"] # preserve ID
-                    self.database.save_kpi(kpi_data)
-                    print("INFO: KPI updated in database")
-                except Exception as e:
-                    print(f"error updating KPI in database update_kpi line 142: {e}")
-                    return False
+        print(f"=== DEBUG UPDATE KPI ===")
+        print(f"Updating KPI at index {index}")
+        print(f"KPI data: {kpi_data}")
 
-            # Update in config
+        kpis = self.get_kpis()
+        print(f"Current KPIs count: {len(kpis)}")
+
+        if 0 <= index < len(kpis):
+            original_kpi = kpis[index]
+            print(f"Original KPI: {original_kpi}")
+            print(f"Original KPI ID: {original_kpi.get('id', 'NO ID')}")
+
+            # Update in database if available
+            if self.database:
+                try:
+                    # PRESERVE THE ORIGINAL ID FOR DATABASE UPDATE
+                    if "id" in original_kpi:
+                        kpi_data["id"] = original_kpi["id"]
+                        print(f"Preserved ID for database update: {kpi_data['id']}")
+
+                    # Save to database - this should update existing record due to ID
+                    success = self.database.save_kpi(kpi_data)
+                    print(f"Database save result: {success}")
+
+                    if success:
+                        print("KPI updated in database")
+                        # Refresh KPIs from database to get the updated data
+                        db_kpis = self.database.get_all_kpis()
+                        if db_kpis:
+                            self.config["kpis"] = db_kpis
+                            if self.save_config():
+                                print("Config updated with database KPIs")
+                                return True
+                            else:
+                                print("Failed to save config after database update")
+                                return False
+                    else:
+                        print("Database save failed")
+                        return False
+
+                except Exception as e:
+                    print(f"Error updating KPI in database: {e}")
+                    # Fall through to config update
+            else:
+                print("No database connection, updating config only")
+
+            # Update in config (fallback if no database or database update failed)
             kpis[index] = kpi_data
             self.config["kpis"] = kpis
-            return self.save_config()
-        return False
+            result = self.save_config()
+            print(f"Config save result: {result}")
+            return result
 
+        print(f"Invalid index: {index}")
+        return False

@@ -52,13 +52,38 @@ class VariablesDialog(QDialog):
             index = self.data_type_combo.findText(current_type)
             if index >= 0:
                 self.data_type_combo.setCurrentIndex(index)
+
+        # Connect data type change to update placeholder
+        self.data_type_combo.currentTextChanged.connect(self.update_placeholder)
         form_layout.addRow("Data Type:", self.data_type_combo)
 
         # Default Value
         self.default_value_input = QLineEdit()
-        self.default_value_input.setPlaceholderText("e.g., 0.85 or 1000")
+        self.update_placeholder()  # Set initial placeholder based on current data type
+
         if self.is_edit_mode:
-            self.default_value_input.setText(str(self.variable_data.get("default_value","")))
+            default_val = self.variable_data.get("default_value", "")
+            if default_val:
+                # Format the value according to its data type for display
+                data_type = self.variable_data.get("data_type", "number")
+                if data_type == "percentage" and not default_val.endswith('%'):
+                    try:
+                        # Convert decimal to percentage for display
+                        float_val = float(default_val)
+                        if float_val <= 1.0:  # If it's a decimal like 0.85
+                            self.default_value_input.setText(f"{float_val * 100:.2f}%")
+                        else:
+                            self.default_value_input.setText(f"{float_val}%")
+                    except:
+                        self.default_value_input.setText(default_val)
+                elif data_type == "currency":
+                    try:
+                        float_val = float(default_val)
+                        self.default_value_input.setText(f"${float_val:,.2f}")
+                    except:
+                        self.default_value_input.setText(default_val)
+                else:
+                    self.default_value_input.setText(str(default_val))
         form_layout.addRow("Default Value:", self.default_value_input)
 
         #Description
@@ -105,40 +130,69 @@ class VariablesDialog(QDialog):
         display_name = self.display_name_input.text().strip()
         name = self.name_input.text().strip()
         data_type = self.data_type_combo.currentText()
-        default_value = self.default_value_input.text().strip()
+        default_value_text = self.default_value_input.text().strip()  # <-- Changed variable name
         description = self.description_input.toPlainText().strip()
 
         errors = []
 
         # Validation
         if not display_name:
-            errors.append("Display name is required  validate_and_save line 115")
+            errors.append("Display name is required")
 
         if not name:
             errors.append("Variable name is required")
-
         elif not re.match(r"^[a-z][a-z0-9_]*$", name):
-            errors.append("Variable name must contain only lowercase letters, numbers, and underscores, and start with a letter   validate_and_save line 121")
+            errors.append(
+                "Variable name must contain only lowercase letters, numbers, and underscores, and start with a letter")
 
-        # Validate default value based on data type
-        if default_value:
-            if data_type in["number","percentage","currency"]:
+        # Process and validate default value based on data type
+        processed_default_value = default_value_text  # <-- NEW: Processed value
+
+        if default_value_text:
+            if data_type in ["number", "percentage", "currency"]:
                 try:
-                    float(default_value)
+                    # Clean the input - remove currency symbols and percent signs for parsing
+                    clean_value = default_value_text.replace('$', '').replace(',', '').replace('%',
+                                                                                               '')  # <-- NEW: Cleaning
+
+                    # Try to convert to float
+                    float_val = float(clean_value)
+
+                    # Process based on data type
+                    if data_type == "percentage":
+                        # If value ends with % or is > 1, assume it's a percentage
+                        if default_value_text.endswith('%') or float_val > 1.0:  # <-- NEW: Smart percentage detection
+                            # Convert percentage to decimal (85% -> 0.85)
+                            processed_default_value = str(float_val / 100.0)
+                        else:
+                            # Already in decimal format (0.85)
+                            processed_default_value = str(float_val)
+
+                    elif data_type == "currency":
+                        # Store as plain number without currency symbol
+                        processed_default_value = str(float_val)  # <-- NEW: Store without symbol
+
+                    else:  # number
+                        processed_default_value = str(float_val)
+
                 except ValueError:
-                    errors.append(f"Default value must be a number for data type '{data_type}'  validate_and_save line 129")
+                    errors.append(f"Default value must be a valid number for data type '{data_type}'")
+            # For text type, no validation needed
+        else:
+            # Empty default value is allowed
+            processed_default_value = ""  # <-- NEW: Handle empty case
 
         if errors:
             error_msg = "Please fix the following errors:\n\n" + "\n".join(f"- {error}" for error in errors)
-            QMessageBox.warning(self,"validation Error", error_msg)
+            QMessageBox.warning(self, "Validation Error", error_msg)
             return
 
-        # prepare variable data
+        # Prepare variable data
         self.variable_data = {
             "display_name": display_name,
-            "name":name,
+            "name": name,
             "data_type": data_type,
-            "default_value": default_value,
+            "default_value": processed_default_value,  # <-- Changed to use processed value
             "description": description,
             "is_active": True
         }
@@ -147,6 +201,18 @@ class VariablesDialog(QDialog):
 
     def get_variable_data(self):
         return self.variable_data
+
+    def update_placeholder(self):
+        """Update placeholder text based on selected data type"""
+        data_type = self.data_type_combo.currentText()
+        if data_type == "number":
+            self.default_value_input.setPlaceholderText("e.g., 0.85 or 1000")
+        elif data_type == "percentage":
+            self.default_value_input.setPlaceholderText("e.g., 85% or 0.85 (both work)")
+        elif data_type == "currency":
+            self.default_value_input.setPlaceholderText("e.g., 1000.50 or $1000.50")
+        else:  # text
+            self.default_value_input.setPlaceholderText("e.g., any text value")
 
 class VariablesManagerDialog(QDialog):
     def __init__(self, parent = None, database = None):
@@ -203,26 +269,36 @@ class VariablesManagerDialog(QDialog):
             return
         try:
 
-            variables = self.database.get_all_custom_variables()
+            variables = self.database.get_custom_variables()
             print(f"DEBUG variables_dialog.py load_variables line 207: Retrieved {len(variables) if variables else 0} variables from database")  # Debug line
+
+            # Debug: Print all variables
+            for i, var in enumerate(variables):
+                print(f" {i}: {var.get('display_name', 'No name')} (ID: {var.get('id','No ID')})")
 
             if not variables: # Handle case where variables is empty list
                 self.variables_list.addItem("No customs variables defined yet")
                 return
             if variables is None: # Handle case where variables is None
-                print("DEBUG: Database returned None for variables")
+                print("DEBUG: Database returned None for variables variables_dialog load_variables line 217")
                 self.variables_list.addItem("Error loading variables from database")
                 return
 
             for var in variables:
-                display_text = f"{var['display_name']}({var['name']}) - {var['data_type']}"
+                # Use safe dictionary access with .get() method
+                display_name = var.get('display_name','Unknown')
+                name = var.get('name','unknown')
+                data_type = var.get('data_type','unknown')
+                default_value = var.get('default_value','')
+
+                display_text = f"{display_name}({name}) - {data_type}"
 
                 if var.get('default_value'):
                     display_text += f"[Default: {var['default_value']}]"
                 self.variables_list.addItem(display_text)
 
         except Exception as e:
-            print(f"DEBUG: Error in load variables:{e}")
+            print(f"DEBUG: Error in load variables:{e} variables_dialog load_variables line 235")
             self.variables_list.addItem(f"Error loading variables: {str(e)}")
 
     def add_variables(self):
@@ -242,7 +318,7 @@ class VariablesManagerDialog(QDialog):
         """Edit selected custom variable"""
         current_row = self.variables_list.currentRow()
         if current_row >= 0 and self.database:
-            variables = self.database.get_all_custom_variables()
+            variables = self.database.get_custom_variables()
             if 0 <= current_row < len(variables):
                 variable_to_edit = variables[current_row]
 
@@ -262,15 +338,29 @@ class VariablesManagerDialog(QDialog):
         """Remove selected custom variable"""
         current_row = self.variables_list.currentRow()
         if current_row >= 0 and self.database:
-            variables = self.database.get_all_custom_variables()
-            if 0 <= current_row < len(variables):
-                variable_name = variables[current_row]['display_name']
-                reply = QMessageBox.question(self, "Confirm Delete",
+            try:
+                # get current variables from database
+                variables = self.database.get_custom_variables()
+                if 0 <= current_row < len(variables):
+                    variable_id = variables[current_row]['id']
+                    variable_name = variables[current_row]['display_name']
+                    reply = QMessageBox.question(self, "Confirm Delete",
                                              f"Are you sure you want to remove variable: {variable_name}?",
                                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                if reply == QMessageBox.StandardButton.Yes:
-                    self.database.delete_custom_variable(variables[current_row]['id'])
-                    self.load_variables()
-                    QMessageBox.information(self, "Success", f"Variable '{variable_name}' removed!")
-                else:
-                    QMessageBox.warning(self, "Error", "Please select a variable to remove")
+                    if reply == QMessageBox.StandardButton.Yes:
+                        # Delete from database
+                        success = self.database.delete_custom_variable(variable_id)
+                        if success:
+                            self.load_variables()
+                            QMessageBox.information(self, "Success", f"Variable '{variable_name}' removed!")
+                        else:
+                            QMessageBox.warning(self, "Error", f"Failed to remove variable '{variable_name}' from database")
+
+
+            except Exception as e:
+                print(f"Error in remove variable: {e} remove_variable line 299")
+                QMessageBox.critical(self,"Error", f"An error occured while removing the variable: {str(e)}")
+
+        else:
+            QMessageBox.warning(self,"Error","Please select a variable to remove")
+

@@ -24,7 +24,9 @@ def exception_hook(exctype, value, traceback_obj):
     sys.__excepthook__(exctype, value, traceback_obj)
 
 
-
+# In main.py, inside the main() function, after creating the QApplication:
+# In main.py, remove the entire app.setStyleSheet() block
+# The main() function should look like this:
 
 def main():
     try:

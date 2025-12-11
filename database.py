@@ -18,6 +18,7 @@ class Database:
                 id TEXT PRIMARY KEY,
                 first_name TEXT NOT NULL,
                 last_name TEXT NOT NULL,
+                father_name TEXT DEFAULT '',
                 hire_date TEXT NOT NULL,
                 current_department TEXT NOT NULL,
                 current_salary REAL NOT NULL,
@@ -26,6 +27,25 @@ class Database:
                 updated_at TEXT NOT NULL
             )
         """)
+
+        # Check if father_name column exists, if not, add it
+        cursor.execute("PRAGMA table_info(employees)")
+        columns_after_create = [column[1] for column in cursor.fetchall()]
+        print(f"DEBUG: After CREATE TABLE - columns: {columns_after_create}")
+
+        # Check if father_name column exists, if not, add it
+        if 'father_name' not in columns_after_create:
+            print("DEBUG: Adding missing father_name column to employees table")
+            try:
+                cursor.execute("ALTER TABLE employees ADD COLUMN father_name TEXT DEFAULT ''")
+                print("DEBUG: ALTER TABLE executed successfully")
+            except Exception as e:
+                print(f"DEBUG: Error executing ALTER TABLE: {e}")
+
+        # Check final schema
+        cursor.execute("PRAGMA table_info(employees)")
+        columns_final = [column[1] for column in cursor.fetchall()]
+        print(f"DEBUG: Final columns: {columns_final}")
 
         # Salary history table
         cursor.execute("""
@@ -95,32 +115,71 @@ class Database:
             )
          ''')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS employee_variable_values (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id TEXT NOT NULL,
+                variable_name TEXT NOT NULL,
+                period_year INTEGER NOT NULL,
+                period_month INTEGER NOT NULL,
+                value REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(employee_id, variable_name, period_year, period_month),
+                FOREIGN KEY (employee_id) REFERENCES employees (id)
+            )
+        ''')
+
         conn.commit()
         conn.close()
 
     def save_employee(self, employee_data):
-        """Save employee to database"""
+        """Save employee to database - handles both old and new schemas"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         current_time = datetime.now().isoformat()
 
-        # Insert or replace employee
-        cursor.execute("""
-            INSERT OR REPLACE INTO employees
-            (id, first_name, last_name, hire_date, current_department, current_salary, status, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?)
-            """, (
-            employee_data["id"],
-            employee_data["first_name"],
-            employee_data["last_name"],
-            employee_data["hire_date"],
-            employee_data["department"],
-            employee_data["salary"],
-            employee_data["status"],
-            current_time,
-            current_time
-        ))
+        # Check if father_name column exists
+        cursor.execute("PRAGMA table_info(employees)")
+        columns = [column[1] for column in cursor.fetchall()]
+        has_father_name = 'father_name' in columns
+
+        if has_father_name:
+            # New schema with father_name
+            cursor.execute("""
+                INSERT OR REPLACE INTO employees
+                (id, first_name, last_name, father_name, hire_date, current_department, current_salary, status, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                """, (
+                employee_data["id"],
+                employee_data["first_name"],
+                employee_data["last_name"],
+                employee_data.get("father_name", ""),
+                employee_data["hire_date"],
+                employee_data["department"],
+                float(employee_data["salary"]),  # Ensure it's float
+                employee_data["status"],
+                current_time,
+                current_time
+            ))
+        else:
+            # Old schema without father_name
+            cursor.execute("""
+                INSERT OR REPLACE INTO employees
+                (id, first_name, last_name, hire_date, current_department, current_salary, status, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                """, (
+                employee_data["id"],
+                employee_data["first_name"],
+                employee_data["last_name"],
+                employee_data["hire_date"],
+                employee_data["department"],
+                float(employee_data["salary"]),  # Ensure it's float
+                employee_data["status"],
+                current_time,
+                current_time
+            ))
 
         # Save salary history if provided
         if "salary_history" in employee_data:
@@ -161,18 +220,60 @@ class Database:
         cursor.execute("SELECT * FROM employees ORDER BY first_name, last_name")
         employees = cursor.fetchall()
 
-        # Conver to list of dictionaries
+        # Get column names
+        column_names = [description[0] for description in cursor.description]
+
+        # Create column index mapping
+        col_index = {name: idx for idx, name in enumerate(column_names)}
+
+        # DEBUG: Print column mapping for verification
+        print(f"DEBUG get_all_employees: Column mapping:")
+        for name, idx in col_index.items():
+            print(f"  {name}: {idx}")
+
+        # Convert to list of dictionaries
         employee_list = []
         for emp in employees:
-            employee_list.append({
-                "id": emp[0],
-                "first_name":emp[1],
-                "last_name":emp[2],
-                "hire_date":emp[3],
-                "department":emp[4],
-                "salary":emp[5],
-                "status":emp[6]
-            })
+            # DEBUG: Print raw data for each employee
+            print(f"DEBUG: Raw employee data: {emp}")
+
+            # Get salary value and ensure it's a float
+            salary_raw = emp[col_index["current_salary"]]
+            print(f"DEBUG: Raw salary value: {salary_raw}, type: {type(salary_raw)}")
+
+            try:
+                # Try to convert salary to float
+                if salary_raw is None:
+                    salary = 0.0
+                elif isinstance(salary_raw, (int, float)):
+                    salary = float(salary_raw)
+                elif isinstance(salary_raw, str):
+                    # Remove any currency symbols or commas
+                    salary_str = salary_raw.replace('$', '').replace(',', '').strip()
+                    salary = float(salary_str) if salary_str else 0.0
+                else:
+                    salary = 0.0
+            except (ValueError, TypeError) as e:
+                print(f"DEBUG: Error converting salary '{salary_raw}' to float: {e}")
+                salary = 0.0
+
+            # Create employee dictionary
+            employee_dict = {
+                "id": str(emp[col_index["id"]]),
+                "first_name": str(emp[col_index["first_name"]]),
+                "last_name": str(emp[col_index["last_name"]]),
+                "father_name": str(emp[col_index.get("father_name", -1)]) if "father_name" in col_index else "",
+                "hire_date": str(emp[col_index["hire_date"]]),
+                "department": str(emp[col_index["current_department"]]),
+                "salary": salary,  # This is now a float
+                "status": str(emp[col_index["status"]])
+            }
+
+            # DEBUG: Print processed employee data
+            print(
+                f"DEBUG: Processed employee: {employee_dict['first_name']} {employee_dict['last_name']}, Salary: {employee_dict['salary']} (type: {type(employee_dict['salary'])})")
+
+            employee_list.append(employee_dict)
 
         conn.close()
         return employee_list
@@ -190,7 +291,7 @@ class Database:
         conn.close()
 
     def get_employee_salary_history(self, employee_id):
-        """Get salary history for and employee"""
+        """Get salary history for an employee"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
@@ -204,34 +305,57 @@ class Database:
         history = cursor.fetchall()
         conn.close()
 
-        return [{"salary":h[0],"effective_date":h[1],"end_date":h[2]} for h in history]
-
-
+        return [{"salary": h[0], "effective_date": h[1], "end_date": h[2]} for h in history]
 
     def save_kpi(self, kpi_data):
-        """Save KPI to database"""
+        """Save KPI to database - properly handles updates"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         current_time = datetime.now().isoformat()
 
-        cursor.execute('''
-            INSERT OR REPLACE INTO kpis 
-            (name, description, calculation_method, formula, applicable_departments, weight, is_active, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            kpi_data['name'],
-            kpi_data.get('description', ''),
-            kpi_data['calculation_method'],
-            kpi_data.get('formula', ''),
-            json.dumps(kpi_data.get('applicable_departments', [])),
-            kpi_data.get('weight', 1.0),
-            1 if kpi_data.get('is_active', True) else 0,
-            current_time
-        ))
+        # Check if this is an update (has ID) or insert (no ID)
+        if 'id' in kpi_data and kpi_data['id'] is not None:
+            print(f"DEBUG: Updating existing KPI with ID: {kpi_data['id']}")
+            # UPDATE existing record
+            cursor.execute('''
+                UPDATE kpis SET 
+                name=?, description=?, calculation_method=?, formula=?, 
+                applicable_departments=?, weight=?, is_active=?, created_at=?
+                WHERE id=?
+            ''', (
+                kpi_data['name'],
+                kpi_data.get('description', ''),
+                kpi_data['calculation_method'],
+                kpi_data.get('formula', ''),
+                json.dumps(kpi_data.get('applicable_departments', [])),
+                kpi_data.get('weight', 1.0),
+                1 if kpi_data.get('is_active', True) else 0,
+                current_time,
+                kpi_data['id']  # WHERE condition
+            ))
+            print(f"DEBUG: Updated {cursor.rowcount} rows")
+        else:
+            print("DEBUG: Inserting new KPI (no ID)")
+            # INSERT new record
+            cursor.execute('''
+                INSERT INTO kpis 
+                (name, description, calculation_method, formula, applicable_departments, weight, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                kpi_data['name'],
+                kpi_data.get('description', ''),
+                kpi_data['calculation_method'],
+                kpi_data.get('formula', ''),
+                json.dumps(kpi_data.get('applicable_departments', [])),
+                kpi_data.get('weight', 1.0),
+                1 if kpi_data.get('is_active', True) else 0,
+                current_time
+            ))
 
         conn.commit()
         conn.close()
+        return True
 
     def get_all_kpis(self):
         """Get all KPIs from database"""
@@ -291,7 +415,6 @@ class Database:
         conn.commit()
         conn.close()
 
-
     def get_custom_variables(self):
         """Get all custom variables from database FIXED VERSION"""
         try:
@@ -314,22 +437,229 @@ class Database:
             # Convert to list of dictionaries
             variable_list = []
             for var in variables:
-                variable_list = []
-                for var in variables:
-                    variable_list.append({
-                        "id": var[0],
-                        "name": var[1],
-                        "display_name": var[2],
-                        "data_type": var[3],
-                        "description": var[5],
-                        "is_active": bool(var[6])
-                    })
+                variable_list.append({
+                    "id": var[0],
+                    "name": var[1],
+                    "display_name": var[2],
+                    "data_type": var[3],
+                    "default_value": var[4],
+                    "description": var[5],
+                    "is_active": bool(var[6])
+                })
 
 
             conn.close()
-            print(f"DEBUG: Returning {len(variable_list)} custom variables")
+            print(f"DEBUG  database get_custom_variable line 329: Returning {len(variable_list)} custom variables")
             return variable_list
 
         except Exception as e:
-            print(f"ERROR in get_all_custom_variables: {e}")
+            print(f"ERROR in get_custom_variables get_custom_variables  line 333: {e}")
             return []  # Return empty list instead of None
+
+    def delete_custom_variable(self,variable_id):
+        """Delete a custom variable by ID - FIXED VERSION"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM custom_variables WHERE id = ?", (variable_id,))
+            conn.commit()
+
+            # Check if any row was actually deleted
+            if cursor.rowcount > 0:
+                print(f"DEBUG: Successfully deleted variable with ID: {variable_id}")
+                conn.close()
+                return True
+            else:
+                print(f"DEBUG: No variable found with ID: {variable_id}")
+                conn.close()
+                return False
+
+        except Exception as e:
+            print(f"Error deleting custom variable: {e}")
+            return False
+
+    def save_employee_variable_value(self, value_data):
+        """Save employee variable value for a specific period"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        current_time = datetime.now().isoformat()
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO employee_variable_values
+            (employee_id, variable_name, period_year, period_month, value, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            value_data["employee_id"],
+            value_data["variable_name"],
+            value_data["period_year"],
+            value_data["period_month"],
+            value_data["value"],
+            current_time,
+            current_time
+        ))
+
+        conn.commit()
+        conn.close()
+        return True
+
+    def get_employee_variable_values(self, employee_id, period_year, period_month):
+        """Get variable values for an employee in a specific period"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT variable_name, value 
+            FROM employee_variable_values 
+            WHERE employee_id = ? AND period_year = ? AND period_month = ?
+        """, (employee_id, period_year, period_month))
+
+        values = cursor.fetchall()
+        conn.close()
+
+        return {row[0]: row[1] for row in values}
+
+    def get_employee_variable_value(self, employee_id, variable_name, period_year, period_month):
+        """Get specific variable value for an employee in a period"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT value 
+            FROM employee_variable_values 
+            WHERE employee_id = ? AND variable_name = ? AND period_year = ? AND period_month = ?
+        """, (employee_id, variable_name, period_year, period_month))
+
+        result = cursor.fetchone()
+        conn.close()
+
+        return result[0] if result else None
+
+    def get_employee_salary_on_date(self, employee_id, target_date):
+        """Get employee's salary on a specific date"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Convert target_date to string if it's a datetime object
+        if isinstance(target_date, datetime):
+            target_date = target_date.strftime("%Y-%m-%d")
+
+        cursor.execute("""
+        SELECT salary 
+        FROM salary_history
+        WHERE employee_id = ? 
+        AND effective_date <= ?
+        AND (end_date IS NULL OR end_date >= ?)
+        ORDER BY effective_date DESC
+        LIMIT 1
+        """, (employee_id, target_date, target_date))
+
+        result = cursor.fetchone()
+        conn.close()
+
+        if result:
+            return result[0]
+
+        # Fallback to current salary
+        cursor.execute("SELECT current_salary FROM employees WHERE id = ?", (employee_id,))
+        result = cursor.fetchone()
+        return result[0] if result else 0
+
+    def get_employee_by_id(self, employee_id):
+        """Get a specific employee by ID"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM employees WHERE id = ?", (employee_id,))
+        emp = cursor.fetchone()
+
+        if not emp:
+            conn.close()
+            return None
+
+        # Get column names
+        column_names = [description[0] for description in cursor.description]
+        col_index = {name: idx for idx, name in enumerate(column_names)}
+
+        employee = {
+            "id": emp[col_index["id"]],
+            "first_name": emp[col_index["first_name"]],
+            "last_name": emp[col_index["last_name"]],
+            "father_name": emp[col_index.get("father_name", -1)] if "father_name" in col_index else "",
+            "hire_date": emp[col_index["hire_date"]],
+            "department": emp[col_index["current_department"]],
+            "salary": float(emp[col_index["current_salary"]]),
+            "status": emp[col_index["status"]]
+        }
+
+        # Rest of the method remains the same...
+        # Get salary history
+        cursor.execute("""
+                       SELECT salary, effective_date, end_date
+                       FROM salary_history
+                       WHERE employee_id = ?
+                       ORDER BY effective_date
+                       """, (employee_id,))
+
+        salary_history = []
+        for salary_record in cursor.fetchall():
+            salary_history.append({
+                "salary": salary_record[0],
+                "effective_date": salary_record[1],
+                "end_date": salary_record[2]
+            })
+
+        employee["salary_history"] = salary_history
+
+        # Get department history
+        cursor.execute("""
+                       SELECT department, effective_date, end_date
+                       FROM department_history
+                       WHERE employee_id = ?
+                       ORDER BY effective_date
+                       """, (employee_id,))
+
+        department_history = []
+        for dept_record in cursor.fetchall():
+            department_history.append({
+                "department": dept_record[0],
+                "effective_date": dept_record[1],
+                "end_date": dept_record[2]
+            })
+
+        employee["department_history"] = department_history
+
+        conn.close()
+        return employee
+
+    def update_employee_father_name(self, employee_id, father_name):
+        """Update only the father's name for an employee"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        current_time = datetime.now().isoformat()
+
+        cursor.execute("""
+                       UPDATE employees
+                       SET father_name = ?,
+                           updated_at  = ?
+                       WHERE id = ?
+                       """, (father_name, current_time, employee_id))
+
+        conn.commit()
+        conn.close()
+        return True
+
+    def check_schema(self):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Get table info
+        cursor.execute("PRAGMA table_info(employees)")
+        columns = cursor.fetchall()
+        print("Employees table schema:")
+        for col in columns:
+            print(f"  {col[0]}: {col[1]} ({col[2]})")
+
+        conn.close()

@@ -1,23 +1,32 @@
 import sys
-
-
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget,QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QLineEdit, QDialog, QComboBox, QSpinBox)
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView,
+    QMessageBox, QLineEdit, QDialog, QComboBox, QSpinBox, QGroupBox,
+    QMenu, QToolButton, QFormLayout, QStackedWidget
+)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QIcon
-from pandas.io.formats.format import return_docstring
+from PyQt6.QtGui import QAction
+from datetime import datetime, date
+import calendar
 from employee_dialog import EmployeeDialog
-from datetime import datetime, timedelta
-import json
 from config_manager import ConfigManager
 from config_dialog import ConfigDialog
-
 from employee_utils import create_employee_with_history, get_current_salary
 from database import Database
-
 from bonus_calculator import BonusCalculator
+from variable_entry_dialog import VariableEntryDialog
+from employee_status_dialog import EmployeeStatusDialog
+from salary_adjustment_dialog import SalaryAdjustmentDialog
 import sqlite3
+from salary_adjustment_dialog_advanced import AdvancedSalaryAdjustmentDialog
+from salary_adjustment_dialog_test import TestSalaryAdjustmentDialog
 
 
+class EmployeeTableWidget(QTableWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
 
 
 class MainWindow(QMainWindow):
@@ -25,48 +34,28 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.username = username
         self.database = Database()
-        self.config_manager = ConfigManager(database = self.database)  # Pass database to config manager
-
+        self.config_manager = ConfigManager(database=self.database)
         self.employees = []
         self.setup_ui()
-        self.load_employees_from_db()  # Load from database
-        # Debug: Check database tables
-        self.debug_database_table()  # Add this line temporarily
-
-
-    def load_employees_from_db(self):
-        """Load employees from database"""
-        self.employees = self.database.get_all_employees()
-        self.refresh_employee_table()
-
-        # Update status bar
-        self.statusBar().showMessage(f"Loaded {len(self.employees)} employees from database")
+        self.load_employees_from_db()
 
     def setup_ui(self):
         # Main window settings
         self.setWindowTitle(f"Employee Bonus System - Welcome {self.username}!")
-        self.setGeometry(100,100,1000,700)  # z, y, width, height
+        self.setGeometry(100, 100, 1200, 800)
 
         self.create_menu_bar()
         self.create_main_layout()
         self.create_status_bar()
 
+        # Show dashboard by default
+        self.show_dashboard()
+
     def create_menu_bar(self):
         menubar = self.menuBar()
 
-        # file menu
+        # File menu
         file_menu = menubar.addMenu("File")
-
-        # Add Configuration menu
-
-        config_menu = menubar.addMenu("Configuration")
-
-        config_action = QAction("System Configuration", self)
-
-        config_action = QAction("System Configurattion", self)
-        config_action.triggered.connect(self.open_configuration)
-        config_menu.addAction(config_action)
-
         logout_action = QAction("Logout", self)
         logout_action.triggered.connect(self.logout)
         file_menu.addAction(logout_action)
@@ -77,400 +66,672 @@ class MainWindow(QMainWindow):
 
         # Employees menu
         employees_menu = menubar.addMenu("Employees")
+        employees_action = QAction("Employees", self)
+        employees_action.triggered.connect(self.show_employees)
+        employees_menu.addAction(employees_action)
 
-        add_employee_action = QAction("Add Employee", self)
-        add_employee_action.triggered.connect(self.add_employee)
-        employees_menu.addAction(add_employee_action)
+        # Dashboard menu
+        dashboard_menu = menubar.addMenu("Dashboard")
+        dashboard_action = QAction("Dashboard", self)
+        dashboard_action.triggered.connect(self.show_dashboard)
+        dashboard_menu.addAction(dashboard_action)
+
+        # Bonus Calculation menu - with submenu items
+        bonus_menu = menubar.addMenu("Bonus Calculation")
+
+        # Submenu items for Bonus Calculation
+        enter_variables_action = QAction("Enter Variable Values", self)
+        enter_variables_action.triggered.connect(self.open_variable_entry)
+        bonus_menu.addAction(enter_variables_action)
+
+        calculate_bonus_action = QAction("Calculate Bonuses", self)
+        calculate_bonus_action.triggered.connect(self.open_bonus_calculation)
+        bonus_menu.addAction(calculate_bonus_action)
+
+        # Configuration menu
+        config_menu = menubar.addMenu("Configuration")
+        config_action = QAction("System Configuration", self)
+        config_action.triggered.connect(self.open_configuration)
+        config_menu.addAction(config_action)
+
+        # Help menu
+        help_menu = menubar.addMenu("Help")
+        help_action = QAction("User Guide", self)
+        help_action.triggered.connect(self.show_help)
+        help_menu.addAction(help_action)
+
+        about_action = QAction("About", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
 
     def create_main_layout(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
+        self.layout = QVBoxLayout(central_widget)
+
+        # Create stacked widget for different pages
+        self.stacked_widget = QStackedWidget()
+        self.layout.addWidget(self.stacked_widget)
+
+        # Create pages
+        self.dashboard_page = self.create_dashboard_page()
+        self.employees_page = self.create_employees_page()
+        self.bonus_calculation_page = self.create_bonus_calculation_page()
+
+        # Add pages to stacked widget
+        self.stacked_widget.addWidget(self.dashboard_page)
+        self.stacked_widget.addWidget(self.employees_page)
+        self.stacked_widget.addWidget(self.bonus_calculation_page)
+
+    def create_dashboard_page(self):
+        """Create the dashboard page"""
+        page = QWidget()
         layout = QVBoxLayout()
 
         # Welcome message
         welcome_label = QLabel(f"Welcome to Employee Bonus System, {self.username}!")
-        welcome_label.setStyleSheet("font-size:16px; font-weight: bold; margin:10px;")
+        welcome_label.setStyleSheet("font-size: 18px; font-weight: bold; margin: 15px; color: #2c3e50;")
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome_label)
 
-        # Create tabs for different sections
+        # Quick stats section
+        stats_layout = QHBoxLayout()
 
-        self.tabs = QTabWidget()
+        total_employees = len(self.employees)
+        active_employees = len([emp for emp in self.employees if emp["status"] == "Active"])
 
-        # Tab 1: Employee Management
-        self.setup_employee_tab()
+        stats_group = QGroupBox("Quick Statistics")
+        stats_form = QFormLayout()
 
-        # Tab 2: Bonus Calculation
-        self.setup_bonus_calculation_tab()
+        stats_form.addRow("Total Employees:", QLabel(str(total_employees)))
+        stats_form.addRow("Active Employees:", QLabel(str(active_employees)))
+        stats_form.addRow("Terminated Employees:", QLabel(str(total_employees - active_employees)))
+        stats_form.addRow("Departments:", QLabel(str(len(self.config_manager.get_departments()))))
 
-        # Tab 3: Dashboard (placeholder for now)
-        dashboard_tab = QWidget()
-        dashboard_layout = QVBoxLayout()
-        dashboard_layout.addWidget(QLabel("Dashboard - Reports and analyitcs coming soon"))
-        dashboard_tab.setLayout(dashboard_layout)
-        self.tabs.addTab(dashboard_tab, "Dashboard")
+        kpis = self.config_manager.get_kpis()
+        stats_form.addRow("Active KPIs:", QLabel(str(len(kpis))))
 
-        layout.addWidget(self.tabs)
-        central_widget.setLayout(layout)
+        stats_group.setLayout(stats_form)
+        stats_layout.addWidget(stats_group)
 
-    def setup_employee_tab(self):
-        """Setup the employee management tab with table and controls"""
+        # Quick actions
+        actions_group = QGroupBox("Quick Actions")
+        actions_layout = QVBoxLayout()
 
+        view_employees_btn = QPushButton("View Employees")
+        view_employees_btn.clicked.connect(self.show_employees)
+        actions_layout.addWidget(view_employees_btn)
 
-        employee_tab = QWidget()
+        enter_vars_btn = QPushButton("Enter Variable Values")
+        enter_vars_btn.clicked.connect(self.open_variable_entry)
+        actions_layout.addWidget(enter_vars_btn)
+
+        calc_bonus_btn = QPushButton("Calculate Bonuses")
+        calc_bonus_btn.clicked.connect(self.open_bonus_calculation)
+        actions_layout.addWidget(calc_bonus_btn)
+
+        config_btn = QPushButton("System Configuration")
+        config_btn.clicked.connect(self.open_configuration)
+        actions_layout.addWidget(config_btn)
+
+        actions_group.setLayout(actions_layout)
+        stats_layout.addWidget(actions_group)
+
+        layout.addLayout(stats_layout)
+
+        # Recent activity placeholder
+        activity_group = QGroupBox("Recent Activity")
+        activity_layout = QVBoxLayout()
+        activity_layout.addWidget(QLabel("Recent system activity and notifications will be shown here."))
+        activity_group.setLayout(activity_layout)
+        layout.addWidget(activity_group)
+
+        layout.addStretch()
+        page.setLayout(layout)
+        return page
+
+    def create_employees_page(self):
+        """Create the employees page"""
+        page = QWidget()
         layout = QVBoxLayout()
 
-        # Search and Add section
-        controls_layout = QHBoxLayout()
+        # Header with Add Employee button and title
+        header_layout = QHBoxLayout()
 
-        # Search box
-        controls_layout.addWidget(QLabel("Search:"))
+        title_label = QLabel("Employee Management")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title_label)
+
+        header_layout.addStretch()
+
+        add_employee_btn = QPushButton("Add New Employee")
+        add_employee_btn.setStyleSheet("QPushButton { padding: 8px 16px; font-weight: bold; }")
+        add_employee_btn.clicked.connect(self.add_employee)
+        header_layout.addWidget(add_employee_btn)
+
+        layout.addLayout(header_layout)
+
+        # Search and filters
+        filter_group = QGroupBox("Search and Filters")
+        filter_layout = QHBoxLayout()
+
+        filter_layout.addWidget(QLabel("Search:"))
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search employees...")
+        self.search_input.setPlaceholderText("Search by name, ID, or department...")
         self.search_input.textChanged.connect(self.filter_employees)
-        controls_layout.addWidget(self.search_input)
+        self.search_input.setMinimumWidth(200)
+        filter_layout.addWidget(self.search_input)
 
-        controls_layout.addStretch()  # Push buttons to the right
+        filter_layout.addWidget(QLabel("Department:"))
+        self.dept_combo = QComboBox()
+        self.dept_combo.addItem("All Departments")
+        departments = self.config_manager.get_departments()
+        self.dept_combo.addItems(departments)
+        self.dept_combo.currentTextChanged.connect(self.filter_employees)
+        filter_layout.addWidget(self.dept_combo)
 
-        # Delete Employee button
-        delete_btn = QPushButton("Delete Employee")
-        delete_btn.clicked.connect(self.delete_employee)
-        controls_layout.addWidget(delete_btn)
+        filter_layout.addWidget(QLabel("Status:"))
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["All", "Active", "Terminated"])
+        self.status_combo.currentTextChanged.connect(self.filter_employees)
+        filter_layout.addWidget(self.status_combo)
 
-        layout.addLayout(controls_layout)
+        filter_layout.addStretch()
 
-        # Add Employee button
-        add_btn = QPushButton ("Add New Employee")
-        add_btn.clicked.connect(self.add_employee)
-        controls_layout.addWidget(add_btn)
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.clicked.connect(self.load_employees_from_db)
+        filter_layout.addWidget(refresh_btn)
 
-        layout.addLayout(controls_layout)
+        filter_group.setLayout(filter_layout)
+        layout.addWidget(filter_group)
 
-        # Test button
-
-        test_kpi_btn = QPushButton("Test KPI System")
-        test_kpi_btn.clicked.connect(self.test_kpi_system)
-        controls_layout.addWidget(test_kpi_btn)
-
-        layout.addLayout(controls_layout)
+        # Employee count
+        self.employee_count_label = QLabel()
+        layout.addWidget(self.employee_count_label)
 
         # Employee table
-        self.employee_table = QTableWidget()
-        self.employee_table.setColumnCount(6)
-        self.employee_table.setHorizontalHeaderLabels(["ID", "First Name", "Last Name", "Department", "Salary", "Status"])
-
-        # Make table headers stretch to fill available space
+        self.employee_table = EmployeeTableWidget(self)
+        self.employee_table.setColumnCount(8)  # Changed from 7 to 8
+        self.employee_table.setHorizontalHeaderLabels([
+            "ID", "First Name", "Last Name", "Father's Name", "Department", "Salary", "Status", "Actions"
+            # Added Father's Name
+        ])
         header = self.employee_table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # First Name
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Last Name
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Father's Name - NEW
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Department
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Salary
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Status
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # Actions
 
-        # Enable sorting
-        self.employee_table.setSortingEnabled(True)
-
-        # Double-click to edit
-        self.employee_table.doubleClicked.connect(self.edit_employee)
-
+        self.employee_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.employee_table)
 
-        employee_tab.setLayout(layout)
-        self.tabs.addTab(employee_tab, "Employee Management")
+        page.setLayout(layout)
+        return page
 
-    def setup_bonus_calculation_tab(self):
-        """Setup the bonus calculation tab"""
-        bonus_tab = QWidget()
+    def create_bonus_calculation_page(self):
+        """Create the bonus calculation page - Simplified version"""
+        page = QWidget()
         layout = QVBoxLayout()
 
+        # Header
+        header_layout = QHBoxLayout()
+        title_label = QLabel("Bonus Calculation")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+
         # Period selection
-        period_layout = QHBoxLayout()
-        period_layout.addWidget(QLabel("Calculation Period:"))
+        period_group = QGroupBox("Calculation Period")
+        period_layout = QVBoxLayout()
 
-        self.month_combo = QComboBox()
-        months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October","November","December"]
-        self.month_combo.addItems(months)
-        self.month_combo.setCurrentIndex(datetime.now().month - 1)
-        period_layout.addWidget(self.month_combo)
+        # Month and Year
+        date_layout = QHBoxLayout()
+        date_layout.addWidget(QLabel("Month:"))
+        self.calc_month_combo = QComboBox()
+        months = ["January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"]
+        self.calc_month_combo.addItems(months)
+        self.calc_month_combo.setCurrentIndex(datetime.now().month - 1)
+        self.calc_month_combo.currentIndexChanged.connect(self.update_working_days)
+        date_layout.addWidget(self.calc_month_combo)
 
-        self.year_spin = QSpinBox()
-        self.year_spin.setRange(2020, 2030)
-        self.year_spin.setValue(datetime.now().year)
-        period_layout.addWidget(self.year_spin)
+        date_layout.addWidget(QLabel("Year:"))
+        self.calc_year_spin = QSpinBox()
+        self.calc_year_spin.setRange(2020, 2030)
+        self.calc_year_spin.setValue(datetime.now().year)
+        self.calc_year_spin.valueChanged.connect(self.update_working_days)
+        date_layout.addWidget(self.calc_year_spin)
 
-        period_layout.addStretch()
+        date_layout.addStretch()
+        period_layout.addLayout(date_layout)
 
-        # Calculate button
-        calculate_btn = QPushButton("Calculate Bonuses")
-        calculate_btn.clicked.connect(self.calculate_all_bonuses)
-        period_layout.addWidget(calculate_btn)
+        # Working days and department
+        working_days_layout = QHBoxLayout()
+        working_days_layout.addWidget(QLabel("Total Working Days in Month:"))
+        self.working_days_spin = QSpinBox()
+        self.working_days_spin.setRange(1, 31)
 
-        layout.addLayout(period_layout)
+        # Calculate actual working days for current month
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        actual_working_days = self.calculate_actual_working_days(current_year, current_month)
+        self.working_days_spin.setValue(actual_working_days)
 
-        #Result table
-        self.bonus_table = QTableWidget()
-        self.bonus_table.setColumnCount(5)
-        self.bonus_table.setHorizontalHeaderLabels([
-            "Employee ID", "Name", "base Salary", "Bonus Amount", "Total"
+        working_days_layout.addWidget(self.working_days_spin)
+
+        working_days_layout.addWidget(QLabel("Department:"))
+        self.calc_dept_combo = QComboBox()
+        self.calc_dept_combo.addItem("All Departments")
+        departments = self.config_manager.get_departments()
+        self.calc_dept_combo.addItems(departments)
+        working_days_layout.addWidget(self.calc_dept_combo)
+
+        period_layout.addLayout(working_days_layout)
+        period_group.setLayout(period_layout)
+        layout.addWidget(period_group)
+
+        # Information section - moved up
+        info_group = QGroupBox("How Bonus Calculation Works")
+        info_layout = QVBoxLayout()
+        info_text = QLabel(
+            "1. Make sure you have entered variable values for the selected period using 'Enter Variable Values' in the menu\n"
+            "2. Select the period and department for which you want to calculate bonuses\n"
+            "3. Enter the total number of working days in the month (for proportional salary calculation)\n"
+            "4. Click 'Calculate Bonuses' to run the calculation\n"
+            "5. The system will use the actual variable values you entered instead of defaults"
+        )
+        info_text.setWordWrap(True)
+        info_layout.addWidget(info_text)
+        info_group.setLayout(info_layout)
+        layout.addWidget(info_group)
+
+        # Results table
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(6)
+        self.results_table.setHorizontalHeaderLabels([
+            "Employee ID", "Name", "Department", "Base Salary", "Bonus Amount", "Total"
         ])
-
-        header = self.bonus_table.horizontalHeader()
+        header = self.results_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.results_table)
 
-        layout.addWidget(self.bonus_table)
+        # Action buttons at the bottom
+        buttons_layout = QHBoxLayout()
 
-        bonus_tab.setLayout(layout)
-        self.tabs.addTab(bonus_tab,"Bonus Calculation")
+        # Edit Variables button - returns to variable entry
+        edit_vars_btn = QPushButton("Edit Variables")
+        edit_vars_btn.clicked.connect(self.open_variable_entry)
+        buttons_layout.addWidget(edit_vars_btn)
 
-    def calculate_all_bonuses(self):
-        """Calculate bonuses for all active employees"""
-        month = self.month_combo.currentIndex() + 1
-        year = self.year_spin.value()
+        buttons_layout.addStretch()
 
-        calculator = BonusCalculator(self.database, self.config_manager)
+        # Save Calculated Bonuses button (empty for now)
+        save_bonuses_btn = QPushButton("Save Calculated Bonuses")
+        save_bonuses_btn.clicked.connect(lambda: QMessageBox.information(
+            self, "Not Implemented", "Save functionality will be implemented in a future update."))
+        buttons_layout.addWidget(save_bonuses_btn)
 
-        results = []
-        for employee in self.employees:
-            if employee["status"] == "Active":
-                result = calculator.calculate_monthly_bonus(employee["id"],year, month)
-                if result:
-                    results.append(result)
+        # Calculate Bonuses button - moved to bottom
+        calculate_btn = QPushButton("Calculate Bonuses")
+        calculate_btn.setStyleSheet("QPushButton { padding: 10px; font-size: 14px; font-weight: bold; }")
+        calculate_btn.clicked.connect(lambda: self.calculate_bonuses())
+        buttons_layout.addWidget(calculate_btn)
 
-        # Display results
-        self.bonus_table.setRowCount(len(results))
-        for row, result in enumerate(results):
-            self.bonus_table.setItem(row, 0, QTableWidgetItem(result["employee_id"]))
-            self.bonus_table.setItem(row, 1, QTableWidgetItem(result["employee_name"]))
-            self.bonus_table.setItem(row, 2, QTableWidgetItem(f"{result["base_salary"]:,.2f}"))
-            self.bonus_table.setItem(row, 3, QTableWidgetItem(f"{result["calculated_bonus"]:,.2f}"))
-            total = result["base_salary"] +result["calculated_bonus"]
-            self.bonus_table.setItem(row, 4, QTableWidgetItem(f"{total:,.2f}"))
-        self.statusBar().showMessage(f"Calculated bonuses for {len(results)} employees")
+        layout.addLayout(buttons_layout)
+
+        layout.addStretch()
+        page.setLayout(layout)
+        return page
 
     def create_status_bar(self):
         status_bar = QStatusBar()
         status_bar.showMessage(f"Logged in as: {self.username} | Ready")
         self.setStatusBar(status_bar)
 
-    def load_sample_data(self):
-            """Load some sample employee data for testing"""
-            sample_employees_data = [{"id": "EMP001", "first_name":"John", "last_name": "Smith","department":"Sales","salary":5000,"status": "Active"},
-                              {"id": "EMP002", "first_name": "Sarah", "last_name": "Johnson", "department": "Marketing", "salary": 4500, "status": "Active"},
-                              {"id": "EMP003", "first_name": "Mike", "last_name": "Brown", "department": "IT", "salary": 6000, "status": "Active"},
-                              {"id": "EMP004", "first_name": "Emily", "last_name": "Davis", "department": "HR", "salary": 4800, "status": "Inactive"},
-                              {"id": "EMP005", "first_name": "David", "last_name": "Wilson", "department": "Sales", "salary": 5200, "status": "Active"}
-                              ]
-            # Use create_employee_with_history for each sample employee
-            self.employees = [create_employee_with_history(emp) for emp in sample_employees_data]
+    # Navigation methods
+    def show_dashboard(self):
+        """Show the dashboard page"""
+        self.stacked_widget.setCurrentIndex(0)
+        self.statusBar().showMessage("Dashboard - System Overview")
 
-            self.refresh_employee_table()
+    def show_employees(self):
+        """Show the employees page"""
+        self.stacked_widget.setCurrentIndex(1)
+        self.load_employees_from_db()  # Refresh data when showing employees
+        self.statusBar().showMessage("Employee Management")
 
-    def refresh_employee_table(self):
+    def show_bonus_calculation(self):
+        """Show the bonus calculation page"""
+        self.stacked_widget.setCurrentIndex(2)
+        self.statusBar().showMessage("Bonus Calculation")
 
-        """Refresh the employee table with current data"""
-        self.employee_table.setRowCount(len(self.employees))
+    def load_employees_from_db(self):
+        """Load employees from database"""
+        self.employees = self.database.get_all_employees()
+        self.display_employees(self.employees)
+        self.update_employee_count()
 
-        for row, employee in enumerate(self.employees):
-            self.employee_table.setItem(row, 0, QTableWidgetItem(employee["id"]))
-            self.employee_table.setItem(row, 1, QTableWidgetItem(employee["first_name"]))
-            self.employee_table.setItem(row,2, QTableWidgetItem(employee["last_name"]))
-            self.employee_table.setItem(row, 3, QTableWidgetItem(employee["department"]))
+    def update_employee_count(self):
+        """Update the employee count label"""
+        total = len(self.employees)
+        active = len([emp for emp in self.employees if emp["status"] == "Active"])
+        terminated = total - active
 
+        self.employee_count_label.setText(
+            f"Showing {total} employees ({active} active, {terminated} terminated)"
+        )
 
-            # Use get_current_salary to display the correct salary
-            current_salary = get_current_salary(employee)
-            self.employee_table.setItem(row,4,QTableWidgetItem(f"{current_salary:,.2f}"))
+    # In display_employees method, update the action button:
+    # In display_employees method, update the action button:
+    # In display_employees method, update the action button styling:
+    # Update the display_employees method to include Father's Name:
+    def display_employees(self, employees):
+        """Display employees in table with action menus"""
+        self.employee_table.setRowCount(len(employees))
 
-            self.employee_table.setItem(row,5,QTableWidgetItem(employee["status"]))
-
-
-    def filter_employees(self):
-        """Filter employees based on search text"""
-        search_text = self.search_input.text().lower()
-
-        if not search_text:
-            self.refresh_employee_table()
-            return
-
-        filtered_employees = [
-            emp for emp in self.employees
-            if (search_text in emp["id"].lower() or
-                search_text in emp["first_name"].lower() or
-                search_text in emp["last_name"].lower() or
-                search_text in emp["department"].lower())
-            ]
-
-        self.employee_table.setRowCount(len(filtered_employees))
-        for row, employee in enumerate(filtered_employees):
+        for row, employee in enumerate(employees):
+            # Employee data
             self.employee_table.setItem(row, 0, QTableWidgetItem(employee["id"]))
             self.employee_table.setItem(row, 1, QTableWidgetItem(employee["first_name"]))
             self.employee_table.setItem(row, 2, QTableWidgetItem(employee["last_name"]))
-            self.employee_table.setItem(row, 3, QTableWidgetItem(employee["department"]))
-            self.employee_table.setItem(row, 4, QTableWidgetItem(f"${employee['salary']:,.2f}"))
-            self.employee_table.setItem(row, 5, QTableWidgetItem(employee["status"]))
+            self.employee_table.setItem(row, 3, QTableWidgetItem(employee.get("father_name", "")))  # NEW FIELD
+            self.employee_table.setItem(row, 4, QTableWidgetItem(str(employee["department"])))
 
+            # In display_employees method, around line 447:
+            try:
+                # Get salary value and ensure it's a float
+                salary_value = employee['salary']
+                if not isinstance(salary_value, (int, float)):
+                    # Try to convert if it's a string
+                    try:
+                        salary_value = float(str(salary_value).replace('$', '').replace(',', '').strip())
+                    except:
+                        salary_value = 0.0
+
+                salary_item = QTableWidgetItem(f"${salary_value:,.2f}")
+            except Exception as e:
+                print(f"ERROR formatting salary for employee {employee.get('id', 'unknown')}: {e}")
+
+            salary_item = QTableWidgetItem(f"${employee['salary']:,.2f}")
+            salary_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.employee_table.setItem(row, 5, salary_item)
+
+            # Status with color coding
+            status_item = QTableWidgetItem(employee["status"])
+            if employee["status"] == "Terminated":
+                status_item.setForeground(Qt.GlobalColor.red)
+                status_item.setBackground(Qt.GlobalColor.lightGray)
+            else:
+                status_item.setForeground(Qt.GlobalColor.darkGreen)
+            status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.employee_table.setItem(row, 6, status_item)
+
+            # Action menu button
+            action_btn = QToolButton()
+            action_btn.setText("⋮")  # Three dots menu
+            action_btn.setStyleSheet("QToolButton { padding: 5px; border: 1px solid #ccc; border-radius: 3px; }")
+            action_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+
+            # Create menu
+            menu = QMenu(self)
+
+            change_details_action = QAction("📝 Change Status/Details", self)
+            change_details_action.triggered.connect(lambda checked, emp=employee: self.change_employee_details(emp))
+            menu.addAction(change_details_action)
+
+            terminate_action = QAction("🔴 Terminate Employee", self)
+            terminate_action.triggered.connect(lambda checked, emp=employee: self.terminate_employee(emp))
+            menu.addAction(terminate_action)
+
+            action_btn.setMenu(menu)
+
+            # Add button to table - column index changed from 6 to 7
+            self.employee_table.setCellWidget(row, 7, action_btn)
+    def filter_employees(self):
+        """Filter employees based on search criteria"""
+        search_text = self.search_input.text().lower()
+        dept_filter = self.dept_combo.currentText()
+        status_filter = self.status_combo.currentText()
+
+        filtered_employees = []
+        for emp in self.employees:
+            # Search text filter
+            matches_search = (not search_text or
+                              search_text in emp["id"].lower() or
+                              search_text in emp["first_name"].lower() or
+                              search_text in emp["last_name"].lower() or
+                              search_text in emp["department"].lower())
+
+            # Department filter
+            matches_dept = (dept_filter == "All Departments" or
+                            emp["department"] == dept_filter)
+
+            # Status filter
+            matches_status = (status_filter == "All" or
+                              emp["status"] == status_filter)
+
+            if matches_search and matches_dept and matches_status:
+                filtered_employees.append(emp)
+
+        self.display_employees(filtered_employees)
+
+        # Update count for filtered results
+        total = len(filtered_employees)
+        active = len([emp for emp in filtered_employees if emp["status"] == "Active"])
+        terminated = total - active
+
+        if total == len(self.employees):
+            self.update_employee_count()
+        else:
+            self.employee_count_label.setText(
+                f"Showing {total} of {len(self.employees)} employees ({active} active, {terminated} terminated)"
+            )
+
+    def change_employee_details(self, employee):
+        """Open dialog to change employee details"""
+        dialog = EmployeeStatusDialog(self, self.database, self.config_manager, employee)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.load_employees_from_db()
+            QMessageBox.information(self, "Success", "Employee details updated successfully!")
+
+    def terminate_employee(self, employee):
+        """Terminate an employee"""
+        if employee["status"] == "Terminated":
+            QMessageBox.information(self, "Already Terminated",
+                                    f"Employee {employee['first_name']} {employee['last_name']} is already terminated.")
+            return
+
+        reply = QMessageBox.question(self, "Confirm Termination",
+                                     f"Are you sure you want to terminate {employee['first_name']} {employee['last_name']}?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            # Update employee status to Terminated
+            updated_employee = employee.copy()
+            updated_employee["status"] = "Terminated"
+
+            # Save to database
+            self.database.save_employee(updated_employee)
+            self.load_employees_from_db()
+
+            QMessageBox.information(self, "Employee Terminated",
+                                    f"{employee['first_name']} {employee['last_name']} has been terminated.")
+
+    # Employee Management Methods
     def add_employee(self):
         """Open dialog to add new employee"""
         dialog = EmployeeDialog(self, None, self.config_manager)
-
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_employee = dialog.get_employee_data()
-
-            # Check if employee ID already exists
             existing_ids = [emp["id"] for emp in self.employees]
             if new_employee["id"] in existing_ids:
-                QMessageBox.warning(self,"Error", f"Employee ID{new_employee["id"]} already exists!")
+                QMessageBox.warning(self, "Error", f"Employee ID {new_employee['id']} already exists!")
+                return
+            self.database.save_employee(new_employee)
+            self.load_employees_from_db()
+            QMessageBox.information(self, "Success",
+                                    f"Employee {new_employee['first_name']} {new_employee['last_name']} added successfully!")
+
+    # Bonus Calculation Methods
+    def open_variable_entry(self):
+        """Open variable entry dialog"""
+        dialog = VariableEntryDialog(self, self.database, self.config_manager)
+        result = dialog.exec()
+        if result == QDialog.DialogCode.Accepted:
+            reply = QMessageBox.question(self, "Calculate Bonuses",
+                                         "Would you like to calculate bonuses for this period now?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.show_bonus_calculation()
+
+    def open_bonus_calculation(self):
+        """Open bonus calculation dialog - now just navigates to the page"""
+        self.show_bonus_calculation()
+
+    def calculate_bonuses(self, pre_calculated_results=None):
+        """Calculate bonuses or display pre-calculated results"""
+        import traceback
+        print("DEBUG: calculate_bonuses called with:", pre_calculated_results)
+
+        if pre_calculated_results is False:
+            print("DEBUG: pre_calculated_results is False, treating as validation failure")
+            pre_calculated_results = None
+
+        if pre_calculated_results is not None:
+            # Display pre-calculated results
+            print("DEBUG: Displaying pre-calculated results")
+            results = pre_calculated_results
+        else:
+            # Calculate bonuses normally
+            print("DEBUG: Calculating bonuses from scratch")
+            month = self.calc_month_combo.currentIndex() + 1
+            year = self.calc_year_spin.value()
+            department_filter = self.calc_dept_combo.currentText()
+            working_days = self.working_days_spin.value()
+
+            calculator = BonusCalculator(self.database, self.config_manager)
+
+            # Check for salary changes in the selected month
+            employees_with_changes = calculator.get_employees_with_salary_changes(year, month)
+
+            # DEBUG: Check what's returned
+            print(f"DEBUG: Found {len(employees_with_changes)} employees with salary changes")
+            for i, emp_data in enumerate(employees_with_changes):
+                employee = emp_data['employee']
+                changes = emp_data['changes']
+                print(
+                    f"  Employee {i + 1}: {employee['first_name']} {employee['last_name']} has {len(changes)} changes")
+                for j, change in enumerate(changes):
+                    print(f"    Change {j + 1}: {change['change_date'].strftime('%Y-%m-%d')}, "
+                          f"{change['old_salary']} -> {change['new_salary']}")
+
+            salary_adjustments = None
+            if employees_with_changes:
+                print(f"\nDEBUG main_window: Found {len(employees_with_changes)} employees with changes")
+                for i, emp_data in enumerate(employees_with_changes):
+                    employee = emp_data['employee']
+                    changes = emp_data['changes']
+                    print(f"  Employee {i + 1}: {employee['first_name']} {employee['last_name']} ({employee['id']})")
+                    for j, change in enumerate(changes):
+                        print(
+                            f"    Change {j + 1}: {change['change_date'].strftime('%Y-%m-%d')}, {change['old_salary']} -> {change['new_salary']}")
+
+                # Show advanced salary adjustment dialog
+                dialog = AdvancedSalaryAdjustmentDialog(self, employees_with_changes, working_days)
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    salary_adjustments = dialog.get_adjustments()
+                    print(f"DEBUG: Got salary adjustments for {len(salary_adjustments)} employees")
+                else:
+                    print("DEBUG: Salary adjustment dialog cancelled")
+                    return
+
+            results = calculator.calculate_bonuses_with_validation(
+                year, month, department_filter, self, working_days, salary_adjustments
+            )
+
+            # Check for both None and False
+            if results is None or results is False:
+                print("DEBUG: Validation failed, returning early")
                 return
 
-            # Save to database
+        print("main_window calculate_bonuses results: ", results)
 
-            self.database.save_employee(new_employee)
-
-            # Reload from database
-            self.load_employees_from_db()
-
-            # Show success message
-            QMessageBox.information(self,"Success",
-                               f"Employee {new_employee['first_name']} {new_employee['last_name']} added successfully!")
-
-            # Update status bar
-            self.statusBar().showMessage(f"Added new employee:{new_employee["id"]}")
-
-    def edit_employee(self, index):
-        """Edit employee when double-clicked"""
-        row = index.row()
-        employee_id = self.employee_table.item(row, 0).text()
-
-        #Find the employee in our list
-        employee_to_edit = None
-        for emp in self.employees:
-            if emp["id"] == employee_id:
-                employee_to_edit = emp
-                break
-
-        if employee_to_edit:
-            # Load salary history for editing
-            salary_history = self.database.get_employee_salary_history(employee_id)
-            employee_to_edit['salary_history'] = salary_history
-
-            dialog = EmployeeDialog(self, employee_to_edit, self.config_manager)
-
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                updated_data = dialog.get_employee_data()
-
-               # Save to database
-                self.database.save_employee(updated_data)
-
-                # Reload from database
-
-                self.load_employees_from_db()
-
-                QMessageBox.information(self, "Success",
-                                        f'Employee {updated_data["first_name"]}{updated_data['last_name']} updated successfully!')
-
-
-        else:
-            QMessageBox.warning(self,"Error","Employee not found!")
-
-    def delete_employee(self):
-        """Delete selected employee"""
-        current_row = self.employee_table.currentRow()
-
-        if current_row == -1:
-            QMessageBox.warning(self,"Error", "Please select an employee to delete!")
+        # Safety check - ensure results is a list
+        if not isinstance(results, list):
+            print(f"ERROR main_window calculate_bonuses line 554: Expected list but got {type(results)}: {results}")
+            QMessageBox.critical(self, "Error", f"Unexpected result type: {type(results)}")
             return
 
-        employee_id = self.employee_table.item(current_row, 0).text()
-        employee_name = f"{self.employee_table.item(current_row, 1).text()} {self.employee_table.item(current_row, 2).text()}"
+        # Display results
+        self.results_table.setRowCount(len(results))
+        for row, result in enumerate(results):
+            self.results_table.setItem(row, 0, QTableWidgetItem(result["employee_id"]))
+            self.results_table.setItem(row, 1, QTableWidgetItem(result["employee_name"]))
+            self.results_table.setItem(row, 2, QTableWidgetItem(result.get("department", "")))
+            self.results_table.setItem(row, 3, QTableWidgetItem(f"{result['base_salary']:,.2f}"))
+            self.results_table.setItem(row, 4, QTableWidgetItem(f"{result['calculated_bonus']:,.2f}"))
+            total = result["base_salary"] + result["calculated_bonus"]
+            self.results_table.setItem(row, 5, QTableWidgetItem(f"{total:,.2f}"))
 
-        reply = QMessageBox.question(self, "Confirm Delete", f"Are you sure you want to delete employee:\n{employee_name}({employee_id})?",QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if pre_calculated_results is None:
+            QMessageBox.information(self, "Calculation Complete",
+                                    f"Calculated bonuses for {len(results)} employees")
 
-        if reply == QMessageBox.StandardButton.Yes:
-            # Delete from database
+    # Other Menu Actions
+    def open_configuration(self):
+        """Open configuration management dialog"""
+        dialog = ConfigDialog(self, self.config_manager, self.database)
+        dialog.exec()
 
-            self.database.delete_employee(employee_id)
+    def show_help(self):
+        """Show help dialog"""
+        QMessageBox.information(self, "Help",
+                                "Employee Bonus System User Guide\n\n"
+                                "1. Dashboard: Overview and quick access to common tasks\n"
+                                "2. Employees: Manage employee information and status\n"
+                                "3. Bonus Calculation: Enter variable values and calculate bonuses\n"
+                                "4. Configuration: Set up departments, KPIs, and custom variables\n\n"
+                                "Use the menu bar to navigate between different sections.")
 
-            # Reload from database
-            self.load_employees_from_db()
-
-            QMessageBox.information(self,"Success",f"Employee {employee_name} deleted successfully!")
-            self.statusBar().showMessage(f"Deleted employee: {employee_id}")
-
-    def test_kpi_system(self):
-        """Test the KPI system directly"""
-        print("=== DIRECT KPI SYSTEM TEST ===")
-
-        # Test 1: Check config manager directly
-        print("1. Checking ConfigManager...")
-        kpis = self.config_manager.get_kpis()
-        print(f"   KPIs from config_manager: {len(kpis)}")
-        for kpi in kpis:
-            print(f"   - {kpi['name']} (Method: {kpi['calculation_method']})")
-
-        # Test 2: Test bonus calculator directly
-        print("2. Testing BonusCalculator directly...")
-        calculator = BonusCalculator(self.database, self.config_manager)
-
-        # Test on first employee
-        if self.employees:
-            employee = self.employees[0]
-            print(f"   Testing on employee: {employee['first_name']} {employee['last_name']}")
-            print(f"   Department: {employee['department']}")
-            print(f"   Salary: ${employee['salary']:,.2f}")
-
-            result = calculator.calculate_monthly_bonus(employee['id'], 2024, 10)
-            if result:
-                print(f"   Base Salary: ${result['base_salary']:,.2f}")
-                print(f"   Bonus Amount: ${result['calculated_bonus']:,.2f}")
-                print(f"   KPI Details: {result['kpi_details']}")
-            else:
-                print("   No result from bonus calculator!")
-        else:
-            print("   No employees to test!")
-
-        print("=== END KPI TEST ===")
-
-                
+    def show_about(self):
+        """Show about dialog"""
+        QMessageBox.about(self, "About Employee Bonus System",
+                          "Employee Bonus System\n\n"
+                          "A comprehensive system for managing employee bonuses "
+                          "based on performance metrics and custom KPIs.\n\n"
+                          "Version 1.0")
 
     def logout(self):
         """Logout and close application"""
-        reply = QMessageBox.question(self, "Logout","Are you sure you want to logout?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
+        reply = QMessageBox.question(self, "Logout", "Are you sure you want to logout?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self.close()
 
-    def open_configuration(self):
-        """Open configuration management dialog"""
-        print("DEBUG: Opening configuration dialog...")
-        dialog = ConfigDialog(self, self.config_manager)
-        result = dialog.exec()
-        print(f"DEBUG: Configuration dialog closed with results: {result}")
+    def calculate_actual_working_days(self, year, month):
+        """Calculate actual working days (Mon-Fri) for a given month/year"""
 
-    def debug_database_table(self):
-        """Debug method to check if database table exists"""
-        print("=== DATABASE DEBUG ===")
+        # Get the month's calendar
+        cal = calendar.monthcalendar(year, month)
 
-        if not self.database:
-            print("EEROR: No database connection")
-            return
-        try:
-            # Test connection by checking if tables exist
-            conn = sqlite3.connect("bonus_system.db")
-            cursor = conn.cursor()
+        # Count working days (Monday=0, Friday=4)
+        working_days = 0
+        for week in cal:
+            for day in week[:5]:  # Monday to Friday (0-4)
+                if day != 0:  # 0 means day is not in this month
+                    working_days += 1
 
-            # Check if custom_variables table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='custom_variables'")
-            table_exists = cursor.fetchone()
-            print(f"Custom variables table exists:{table_exists is not None}")
+        return working_days
 
-            # Check all tables
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = cursor.fetchall()
-            print("All tables in database:")
-            for table in tables:
-                print(f" - {table[0]}")
-
-            conn.close()
-
-        except Exception as e:
-            print(f"Error checking database:{e}")
-
-
+    def update_working_days(self):
+        """Update working days based on selected month/year"""
+        month = self.calc_month_combo.currentIndex() + 1
+        year = self.calc_year_spin.value()
+        actual_working_days = self.calculate_actual_working_days(year, month)
+        self.working_days_spin.setValue(actual_working_days)

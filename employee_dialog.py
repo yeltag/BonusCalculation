@@ -9,10 +9,8 @@ from datetime import datetime
 from employee_utils import create_employee_with_history, get_current_salary
 
 
-
-
 class EmployeeDialog(QDialog):
-    def __init__(self, parent=None, employee_data=None, config_manager = None):
+    def __init__(self, parent=None, employee_data=None, config_manager=None):
         super().__init__(parent)
         self.employee_data = employee_data
         self.is_edit_mode = employee_data is not None
@@ -24,7 +22,7 @@ class EmployeeDialog(QDialog):
             self.setWindowTitle("Add New Employee")
 
         self.setup_ui()
-        self.setFixedSize(500, 500)
+        self.setFixedSize(500, 550)  # Increased height to accommodate new field
 
     def setup_ui(self):
         # Debug information
@@ -40,11 +38,13 @@ class EmployeeDialog(QDialog):
 
         # Basic Information Section
         main_layout.addWidget(QLabel("Basic Information"))
+
+        # Employee ID
         main_layout.addWidget(QLabel("Employee ID:"))
         self.id_input = QLineEdit()
         self.id_input.setPlaceholderText("EMP001")
         if self.is_edit_mode:
-            self.id_input.setText(self.employee_data.get("id",""))
+            self.id_input.setText(self.employee_data.get("id", ""))
             self.id_input.setEnabled(False)
         main_layout.addWidget(self.id_input)
 
@@ -62,6 +62,14 @@ class EmployeeDialog(QDialog):
         if self.is_edit_mode:
             self.last_name_input.setText(self.employee_data.get("last_name", ""))
         main_layout.addWidget(self.last_name_input)
+
+        # Father's Name - NEW FIELD
+        main_layout.addWidget(QLabel("Father's Name:"))
+        self.father_name_input = QLineEdit()
+        self.father_name_input.setPlaceholderText("Optional")
+        if self.is_edit_mode:
+            self.father_name_input.setText(self.employee_data.get("father_name", ""))
+        main_layout.addWidget(self.father_name_input)
 
         # Hire Date
         main_layout.addWidget(QLabel("Hire Date:"))
@@ -81,7 +89,7 @@ class EmployeeDialog(QDialog):
             departments = self.config_manager.get_departments()
             self.department_combo.addItems(departments)
         else:
-            # Fallback departments if confiq_manager is not available
+            # Fallback departments if config_manager is not available
             print("Warning: config manager not available, using default departments")
 
         if not departments:
@@ -91,7 +99,6 @@ class EmployeeDialog(QDialog):
 
         self.department_combo.addItems(departments)
 
-
         if self.is_edit_mode:
             current_dept = self.employee_data.get("department", "")
             if current_dept:
@@ -99,13 +106,12 @@ class EmployeeDialog(QDialog):
                 if index >= 0:
                     self.department_combo.setCurrentIndex(index)
                 else:
-                     # If department doesn't exist in list, add it and select it
-                     self.department_combo.addItem(current_dept)
-                     self.department_combo.setCurrentIndex(self.department_combo.count() - 1)
+                    # If department doesn't exist in list, add it and select it
+                    self.department_combo.addItem(current_dept)
+                    self.department_combo.setCurrentIndex(self.department_combo.count() - 1)
             else:
-                # If no current department, select fist one
+                # If no current department, select first one
                 self.department_combo.setCurrentIndex(0)
-
 
         main_layout.addWidget(self.department_combo)
 
@@ -119,7 +125,6 @@ class EmployeeDialog(QDialog):
         main_layout.addWidget(self.salary_input)
 
         # Salary Effective Date (for changes)
-
         if self.is_edit_mode:
             main_layout.addWidget(QLabel("Salary Effective Date:"))
             self.salary_effective_date = QDateEdit()
@@ -130,7 +135,7 @@ class EmployeeDialog(QDialog):
         # Status
         main_layout.addWidget(QLabel("Status:"))
         self.status_combo = QComboBox()
-        self.status_combo.addItems(["Active", "Inactive"])
+        self.status_combo.addItems(["Active", "Terminated"])
         if self.is_edit_mode:
             current_status = self.employee_data.get("status", "Active")
             index = self.status_combo.findText(current_status)
@@ -168,6 +173,7 @@ class EmployeeDialog(QDialog):
         employee_id = self.id_input.text().strip()
         first_name = self.first_name_input.text().strip()
         last_name = self.last_name_input.text().strip()
+        father_name = self.father_name_input.text().strip()  # NEW FIELD
         department = self.department_combo.currentText()
         salary_text = self.salary_input.text().strip()
         status = self.status_combo.currentText()
@@ -192,6 +198,10 @@ class EmployeeDialog(QDialog):
         elif not re.match(r'^[A-Za-z\s\-]+$', last_name):
             errors.append("Last name can only contain letters, spaces, and hyphens")
 
+        # Father's name is optional, but validate format if provided
+        if father_name and not re.match(r'^[A-Za-z\s\-\.]+$', father_name):
+            errors.append("Father's name can only contain letters, spaces, hyphens, and periods")
+
         # Salary validation
         if not salary_text:
             errors.append("Salary is required")
@@ -214,6 +224,7 @@ class EmployeeDialog(QDialog):
             "id": employee_id,
             "first_name": first_name,
             "last_name": last_name,
+            "father_name": father_name,  # NEW FIELD
             "department": department,
             "salary": float(salary_text),
             "status": status,
@@ -237,7 +248,7 @@ class EmployeeDialog(QDialog):
                     "end_date": None
                 })
 
-             # Update current data
+            # Update current data
             self.employee_data.update(self.employee_data)
         else:
             # New employee - create with history
@@ -248,5 +259,5 @@ class EmployeeDialog(QDialog):
 
     def get_employee_data(self):
         """Return the employee data entered in the form"""
-        print(f"DEBUG: Returning employe data: {self.employee_data}")
+        print(f"DEBUG: Returning employee data: {self.employee_data}")
         return self.employee_data

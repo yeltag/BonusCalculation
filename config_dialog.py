@@ -6,9 +6,10 @@ from kpi_editor_dialog import KPIEditorDialog
 from variables_dialog import VariablesManagerDialog
 
 class ConfigDialog(QDialog):
-    def __init__(self, parent = None, config_manager = None):
+    def __init__(self, parent = None, config_manager = None, database = None):
         super().__init__(parent)
         self.config_manager = config_manager
+        self.database = database
         self.setWindowTitle("System Configuration")
         self.setFixedSize(700, 500)
         self.setup_ui()
@@ -162,6 +163,8 @@ class ConfigDialog(QDialog):
 
     def add_kpi(self):
         """Open KPI editor to add new KPI"""
+        print(f"DEBUG ConfigDialog: self.database = {self.database}")
+
         dialog = KPIEditorDialog(self,None,self.config_manager, database = self.database)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -181,31 +184,68 @@ class ConfigDialog(QDialog):
             kpis = self.config_manager.get_kpis()
             kpi_to_edit = kpis[current_row]
 
-            dialog = KPIEditorDialog(self,kpi_to_edit, self.config_manager)
+            print(f"=== DEBUG EDIT KPI ===")
+            print(f"Editing KPI at index {current_row}")
+            print(f"KPI to edit: {kpi_to_edit}")
+            print(f"KPI ID: {kpi_to_edit.get('id', 'NO ID')}")
+            print(f"KPI Name: {kpi_to_edit.get('name')}")
+
+            dialog = KPIEditorDialog(self,kpi_to_edit, self.config_manager, self.database)
 
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 updated_kpi = dialog.get_kpi_data()
+                print(f"Updated KPI data: {updated_kpi}")
+                print(f"Updated KPI ID: {updated_kpi.get('id', 'NO ID')}")
+                print(f"=== END DEBUG ===")
 
-                # Update the KPI
-                if self.config_manager.update_kpi(current_row, updated_kpi):
-                    self.load_kpis()
-                    QMessageBox.information(self, "Success","KPI updated successfully!")
+                # If KPI has an ID (from database), use add_kpi which will update via INSERT OR REPLACE
+                if "id" in kpi_to_edit:
+                    if self.config_manager.update_kpi(current_row, updated_kpi):
+                        self.load_kpis()
+                        QMessageBox.information(self, "Success","KPI updated successfully!")
+                    else:
+                        QMessageBox.warning(self,"Error", "Failed to update KPI")
                 else:
-                    QMessageBox.warning(self,"Error", "Failed to update KPI")
+                    # For config-only KPIs, use update_kpi
+                    if self.config_manager.update_kpi(current_row, updated_kpi):
+                        self.load_kpis()
+                        QMessageBox.information(self, "Success", "KPI updated successfully!")
+                    else:
+                        QMessageBox.warning(self, "Error", "Failed to update KPI")
+
+
         else:
             QMessageBox.warning(self,"Error","Please select a KPI to edit")
 
     def remove_kpi(self):
         current_row = self.kpi_list.currentRow()
-        if current_row >=0:
+        if current_row >= 0:
             kpis = self.config_manager.get_kpis()
-            kpi_name = kpis[current_row]["name"]
+            kpi_to_remove = kpis[current_row]
+            kpi_name = kpi_to_remove["name"]
+
             reply = QMessageBox.question(self, "Confirm", f"Remove KPI: {kpi_name}?")
             if reply == QMessageBox.StandardButton.Yes:
+                # Remove from database if available
+                if self.database and "id" in kpi_to_remove:
+                    try:
+                        self.database.delete_kpi(kpi_to_remove["id"])
+                        print(f"DEBUG: KPI {kpi_name} deleted from database")
+                    except Exception as e:
+                        print(f"Error deleting KPI from database: {e}")
+                        QMessageBox.warning(self, "Error", f"Failed to remove KPI from database: {e}")
+                        return
+
+                # Remove from config
                 kpis.pop(current_row)
                 self.config_manager.config["kpis"] = kpis
-                self.config_manager.save_config()
-                self.load_kpis()
+                if self.config_manager.save_config():
+                    self.load_kpis()
+                    QMessageBox.information(self, "Success", f"KPI '{kpi_name}' removed successfully!")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to save configuration after removal")
+        else:
+            QMessageBox.warning(self, "Error", "Please select a KPI to remove")
 
     def test_buttons(self):
         print("Testing KPIs tab buttons...  config_dialog.py  test_buttons line 211")
