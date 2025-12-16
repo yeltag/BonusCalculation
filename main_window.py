@@ -21,6 +21,7 @@ from salary_adjustment_dialog import SalaryAdjustmentDialog
 import sqlite3
 from salary_adjustment_dialog_advanced import AdvancedSalaryAdjustmentDialog
 from salary_adjustment_dialog_test import TestSalaryAdjustmentDialog
+from variable_entry_widget import VariableEntryWidget
 
 
 class EmployeeTableWidget(QTableWidget):
@@ -66,9 +67,15 @@ class MainWindow(QMainWindow):
 
         # Employees menu
         employees_menu = menubar.addMenu("Employees")
+
+        # Submenu items for Employees
         employees_action = QAction("Employees", self)
         employees_action.triggered.connect(self.show_employees)
         employees_menu.addAction(employees_action)
+
+        orders_action = QAction("Orders", self)
+        orders_action.triggered.connect(self.show_orders)
+        employees_menu.addAction(orders_action)
 
         # Dashboard menu
         dashboard_menu = menubar.addMenu("Dashboard")
@@ -81,7 +88,7 @@ class MainWindow(QMainWindow):
 
         # Submenu items for Bonus Calculation
         enter_variables_action = QAction("Enter Variable Values", self)
-        enter_variables_action.triggered.connect(self.open_variable_entry)
+        enter_variables_action.triggered.connect(self.show_variable_entry)
         bonus_menu.addAction(enter_variables_action)
 
         calculate_bonus_action = QAction("Calculate Bonuses", self)
@@ -117,12 +124,17 @@ class MainWindow(QMainWindow):
         # Create pages
         self.dashboard_page = self.create_dashboard_page()
         self.employees_page = self.create_employees_page()
+        self.variable_entry_page = self.create_variable_entry_page()
         self.bonus_calculation_page = self.create_bonus_calculation_page()
+        self.orders_page = self.create_orders_page()
 
         # Add pages to stacked widget
         self.stacked_widget.addWidget(self.dashboard_page)
         self.stacked_widget.addWidget(self.employees_page)
+        self.stacked_widget.addWidget(self.variable_entry_page)
         self.stacked_widget.addWidget(self.bonus_calculation_page)
+        self.stacked_widget.addWidget(self.orders_page)
+
 
     def create_dashboard_page(self):
         """Create the dashboard page"""
@@ -259,9 +271,9 @@ class MainWindow(QMainWindow):
         ])
         header = self.employee_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # First Name
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Last Name
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Father's Name - NEW
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # First Name
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Last Name
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Father's Name - NEW
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Department
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Salary
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Status
@@ -272,6 +284,11 @@ class MainWindow(QMainWindow):
 
         page.setLayout(layout)
         return page
+
+    def create_variable_entry_page(self):
+        """Create the variable entry page"""
+        widget = VariableEntryWidget(self,self.database,self.config_manager)
+        return widget
 
     def create_bonus_calculation_page(self):
         """Create the bonus calculation page - Simplified version"""
@@ -303,7 +320,7 @@ class MainWindow(QMainWindow):
 
         date_layout.addWidget(QLabel("Year:"))
         self.calc_year_spin = QSpinBox()
-        self.calc_year_spin.setRange(2020, 2030)
+        self.calc_year_spin.setRange(2000, 2050)
         self.calc_year_spin.setValue(datetime.now().year)
         self.calc_year_spin.valueChanged.connect(self.update_working_days)
         date_layout.addWidget(self.calc_year_spin)
@@ -389,6 +406,79 @@ class MainWindow(QMainWindow):
         page.setLayout(layout)
         return page
 
+    def create_orders_page(self):
+        page = QWidget()
+        layout = QVBoxLayout()
+
+        # Header
+        header_layout = QHBoxLayout()
+
+        title_label = QLabel("Orders")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title_label)
+
+        header_layout.addStretch()
+
+        new_order_btn = QPushButton("Add New Order")
+        new_order_btn.setStyleSheet("QPushButton {padding: 8px 16 px; font-weight: bold;}")
+        new_order_btn.clicked.connect(self.add_order)
+        header_layout.addWidget(new_order_btn)
+
+        layout.addLayout(header_layout)
+
+        # Search and filters
+        filter_group = QGroupBox("Search and Filters")
+        filter_layout = QHBoxLayout()
+
+        filter_layout.addWidget(QLabel("Search:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search by name, ID, or order type...")
+        self.search_input.textChanged.connect(self.filter_orders)
+        self.search_input.setMinimumWidth(200)
+        filter_layout.addWidget(self.search_input)
+
+        period_group = QGroupBox("Calculation Period")
+        period_layout = QHBoxLayout()
+
+        period_layout.addWidget(QLabel("Month:"))
+        self.calc_month_combo = QComboBox()
+        months = ["January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"]
+        self.calc_month_combo.addItems(months)
+        self.calc_month_combo.setCurrentIndex(datetime.now().month - 1)
+        period_layout.addWidget(self.calc_month_combo)
+
+        period_layout.addWidget(QLabel("Year:"))
+        self.calc_year_spin = QSpinBox()
+        self.calc_year_spin.setRange(2000, 2050)
+        self.calc_year_spin.setValue(datetime.now().year)
+        period_layout.addWidget(self.calc_year_spin)
+
+        period_layout.addStretch()
+
+        filter_group.setLayout(period_layout)
+
+        layout.addWidget(filter_group)
+
+        # Orders table
+        self.orders_table = EmployeeTableWidget(self)
+        self.orders_table.setColumnCount(5)
+        self.orders_table.setHorizontalHeaderLabels((["Number","Date","ID","Name","Order Type"]))
+
+        header = self.orders_table.horizontalHeader()
+        header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Number
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  #Date
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  #ID
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  #Name
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  #Order Type
+
+        self.orders_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        layout.addWidget(self.orders_table)
+
+        page.setLayout(layout)
+        return page
+
+
     def create_status_bar(self):
         status_bar = QStatusBar()
         status_bar.showMessage(f"Logged in as: {self.username} | Ready")
@@ -406,9 +496,14 @@ class MainWindow(QMainWindow):
         self.load_employees_from_db()  # Refresh data when showing employees
         self.statusBar().showMessage("Employee Management")
 
+    def show_variable_entry(self):
+        """Show the variable entry page"""
+        self.stacked_widget.setCurrentIndex(2)  # Adjust index based on your stack order
+        self.statusBar().showMessage("Variable Entry - Enter monthly variable values")
+
     def show_bonus_calculation(self):
         """Show the bonus calculation page"""
-        self.stacked_widget.setCurrentIndex(2)
+        self.stacked_widget.setCurrentIndex(3)
         self.statusBar().showMessage("Bonus Calculation")
 
     def load_employees_from_db(self):
@@ -427,10 +522,6 @@ class MainWindow(QMainWindow):
             f"Showing {total} employees ({active} active, {terminated} terminated)"
         )
 
-    # In display_employees method, update the action button:
-    # In display_employees method, update the action button:
-    # In display_employees method, update the action button styling:
-    # Update the display_employees method to include Father's Name:
     def display_employees(self, employees):
         """Display employees in table with action menus"""
         self.employee_table.setRowCount(len(employees))
@@ -580,15 +671,8 @@ class MainWindow(QMainWindow):
 
     # Bonus Calculation Methods
     def open_variable_entry(self):
-        """Open variable entry dialog"""
-        dialog = VariableEntryDialog(self, self.database, self.config_manager)
-        result = dialog.exec()
-        if result == QDialog.DialogCode.Accepted:
-            reply = QMessageBox.question(self, "Calculate Bonuses",
-                                         "Would you like to calculate bonuses for this period now?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            if reply == QMessageBox.StandardButton.Yes:
-                self.show_bonus_calculation()
+        """Open variable entry page (now deprecated - use show_variable_entry instead)"""
+        self.show_variable_entry()
 
     def open_bonus_calculation(self):
         """Open bonus calculation dialog - now just navigates to the page"""
@@ -735,3 +819,36 @@ class MainWindow(QMainWindow):
         year = self.calc_year_spin.value()
         actual_working_days = self.calculate_actual_working_days(year, month)
         self.working_days_spin.setValue(actual_working_days)
+
+    def show_orders(self):
+        self.stacked_widget.setCurrentIndex(4)
+        self.load_orders_from_db()
+
+    def add_order(self):
+        pass
+
+    def filter_orders(self):
+        pass
+
+    def load_orders_from_db(self):
+        """Load orders from database"""
+        self.orders = self.database.get_all_orders()
+        self.display_orders(self.orders)
+
+    def display_orders(self,orders):
+        """Display orders in table"""
+        if orders:
+            self.orders_table.setRowCount(len(orders))
+
+            for row, order in enumerate(orders):
+                # Order data
+                self.orders_table.setItem(row, 0,QTableWidgetItem(orders["order_number"]))
+                self.orders_table.setItem(row, 1, QTableWidgetItem(orders["order_date"]))
+                self.orders_table.setItem(row, 2, QTableWidgetItem(orders["employee_id"]))
+                self.orders_table.setItem(row, 4, QTableWidgetItem(orders["order_action"]))
+                employee_name = self.database.get_all_employees()[orders["employee_id"]]["first_name"]
+                self.orders_table.setItem(row, 3, QTableWidgetItem(employee_name))
+
+        else:
+            return
+

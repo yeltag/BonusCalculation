@@ -130,6 +130,18 @@ class Database:
             )
         ''')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS orders(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_number TEXT NOT NULL,
+                employee_id TEXT NOT NULL,
+                order_date TEXT NOT NULL,
+                effective_date TEXT NOT NULL,
+                order_action TEXT NOT NULL, --"employment", "salary change", "department change", 'termination"
+                FOREIGN KEY (employee_id) REFERENCES employees (id)
+            )
+        ''')
+
         conn.commit()
         conn.close()
 
@@ -663,3 +675,41 @@ class Database:
             print(f"  {col[0]}: {col[1]} ({col[2]})")
 
         conn.close()
+
+    def get_all_orders(self):
+        """Get all orders from database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM orders ORDER BY order_date")
+        orders = cursor.fetchall()
+
+        # Set column names
+        column_names = [description[0] for description in cursor.description]
+
+        # Create column index mapping
+        col_index = {name:idx for idx, name in enumerate(column_names)}
+
+        # Convert to list of dictionaries
+        order_list = []
+
+        for ord in orders:
+            # Create orders dictionary
+            orders_dict = {
+                "id":str(ord[col_index["id"]]),
+                "order_number":str(ord[col_index["order_number"]]),
+                "employee_id": str(ord[col_index["employee_id"]]),
+                "order_date": str(ord[col_index["order_date"]]),
+                "effective_date": str(ord[col_index["effective_date"]]),
+                "order_action": str(ord[col_index["order_action"]]),
+
+            }
+
+            order_list.append(orders_dict)
+
+            conn.close()
+            return order_list
+
+if __name__ == "__main__":
+    database = Database()
+    print(database.get_all_orders())
