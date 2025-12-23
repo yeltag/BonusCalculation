@@ -22,6 +22,7 @@ import sqlite3
 from salary_adjustment_dialog_advanced import AdvancedSalaryAdjustmentDialog
 from salary_adjustment_dialog_test import TestSalaryAdjustmentDialog
 from variable_entry_widget import VariableEntryWidget
+from order_dialog import OrderDialog
 
 
 class EmployeeTableWidget(QTableWidget):
@@ -825,7 +826,7 @@ class MainWindow(QMainWindow):
         self.load_orders_from_db()
 
     def add_order(self):
-        pass
+        dialog = OrderDialog(self, None, self.config_manager)
 
     def filter_orders(self):
         pass

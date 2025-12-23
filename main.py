@@ -3,6 +3,10 @@ import traceback
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt
 from login_window import LoginWindow
+import os
+import json
+
+
 
 def exception_hook(exctype, value, traceback_obj):
     """
@@ -24,10 +28,6 @@ def exception_hook(exctype, value, traceback_obj):
     sys.__excepthook__(exctype, value, traceback_obj)
 
 
-# In main.py, inside the main() function, after creating the QApplication:
-# In main.py, remove the entire app.setStyleSheet() block
-# The main() function should look like this:
-
 def main():
     try:
         # Set the exception hook
@@ -39,6 +39,10 @@ def main():
         # Create the application
         app = QApplication(sys.argv)
 
+        # System initialization
+        initialize_system()
+
+
         # Create and show login window
         login_window = LoginWindow()
         login_window.show()
@@ -49,6 +53,31 @@ def main():
     except Exception as e:
         print(f"Application failed to start: {e}")
         input("press Enter to exit...")  #Keep console open to see error
+
+
+def initialize_system():
+    """Initialize the system with clean configuration"""
+    print("Initializing Employee Bonus System...")
+
+    # Check if config.json exists
+    if not os.path.exists('config.json'):
+        print("Creating default configuration...")
+        default_config = {
+            "departments": ["Sales", "Marketing", "IT", "HR", "Finance", "Operations"],
+            "kpis": []
+        }
+        with open('config.json', 'w') as f:
+            json.dump(default_config, f, indent=4)
+
+    # Initialize database
+    from database import Database
+    db = Database()
+
+    # Verify no unwanted tables exist
+    db.check_schema()
+
+    print("System initialized successfully!")
+    return db
 
 if __name__ == "__main__":
     main()

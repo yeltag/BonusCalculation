@@ -1,10 +1,6 @@
 import json
 import os
 from datetime import datetime
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-                             QPushButton, QListWidget, QMessageBox, QTabWidget, QWidget, QInputDialog, QComboBox)
-
-from PyQt6.QtCore import Qt
 
 
 class ConfigManager:
@@ -18,12 +14,6 @@ class ConfigManager:
         """Load configuration from JSON file"""
         default_config = {
             "departments": ["Sales","Marketing","IT","HR","Finance","Operations"],
-            "cost centers": ["CC001","CC002","CC003"],
-            "analysis fields":[
-                {"name":"Performance Rating","type":"number","min": 1, "max":5},
-                {"name": "Years of Service", "type":"number"},
-
-            ],
             "kpis":[]
 
         }
@@ -56,7 +46,7 @@ class ConfigManager:
                 return default_config
 
         except Exception as e:
-            print(f"Error loading config load_config line 58:{e}")
+            print(f"Error loading config config_manager load_config:{e}")
             return default_config
 
 
@@ -105,7 +95,7 @@ class ConfigManager:
                     self.config["kpis"] = db_kpis
                     return db_kpis
             except Exception as e:
-                print(f"Error getting KPIs from database get_kpis line 107: {e}")
+                print(f"Error getting KPIs from database get_kpis: {e}")
 
 
         # Fallback to config file
@@ -131,17 +121,13 @@ class ConfigManager:
 
     def update_kpi(self, index, kpi_data):
         """Update KPI in both database and config"""
-        print(f"=== DEBUG UPDATE KPI ===")
-        print(f"Updating KPI at index {index}")
-        print(f"KPI data: {kpi_data}")
 
         kpis = self.get_kpis()
-        print(f"Current KPIs count: {len(kpis)}")
+
 
         if 0 <= index < len(kpis):
             original_kpi = kpis[index]
-            print(f"Original KPI: {original_kpi}")
-            print(f"Original KPI ID: {original_kpi.get('id', 'NO ID')}")
+
 
             # Update in database if available
             if self.database:
@@ -174,8 +160,7 @@ class ConfigManager:
                 except Exception as e:
                     print(f"Error updating KPI in database: {e}")
                     # Fall through to config update
-            else:
-                print("No database connection, updating config only")
+
 
             # Update in config (fallback if no database or database update failed)
             kpis[index] = kpi_data
