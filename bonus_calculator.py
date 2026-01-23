@@ -60,7 +60,7 @@ class BonusCalculator:
 
         return {
             "employee_id": employee_id,
-            "employee_name": f"{employee['first_name']} {employee['last_name']}",
+            "employee_name": f"{employee['last_name']} {employee['first_name']} {employee['father_name']}",
             "department": employee['department'],
             "period_month": month,
             "period_year": year,
@@ -338,7 +338,7 @@ class BonusCalculator:
             if department != "All Departments" and employee["department"] != department:
                 continue
 
-            if employee["status"] == "Active":
+            if employee["status"].lower() == "active":
                 proportional_salary = None
 
                 # Check if we have manual salary adjustments from dialog

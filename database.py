@@ -6,6 +6,7 @@ class Database:
     def __init__(self, db_path = "bonus_system.db"):
         self.db_path = db_path
         self.init_database()
+        self.fix_orders_table_constraint()
 
     def init_database(self):
         """Initialize database tables"""
@@ -152,6 +153,15 @@ class Database:
 
         current_time = datetime.now().isoformat()
 
+        # First check if employee exists and is active
+        cursor.execute("SELECT id, status FROM employees WHERE id = ?", (employee_data["id"],))
+        existing_employee = cursor.fetchone()
+
+        # If employee exists and is active, we should not overwrite
+        # if existing_employee and existing_employee[1].lower() == "active":
+        #     conn.close()
+        #     raise ValueError(f"Active employee with ID '{employee_data['id']}' already exists")
+
         # Check if father_name column exists
         cursor.execute("PRAGMA table_info(employees)")
         columns = [column[1] for column in cursor.fetchall()]
@@ -197,30 +207,29 @@ class Database:
         if "salary_history" in employee_data:
             for salary_record in employee_data["salary_history"]:
                 cursor.execute("""
-                INSERT INTO salary_history
-                (employee_id, salary, effective_date, end_date)
-                VALUES (?,?,?,?)
-                """, (
-                employee_data["id"],
-                salary_record['salary'],
-                salary_record["effective_date"],
-                salary_record.get("end_date")
-                ))
+                               INSERT INTO salary_history
+                                   (employee_id, salary, effective_date, end_date)
+                               VALUES (?, ?, ?, ?)
+                               """, (
+                                   employee_data["id"],
+                                   salary_record['salary'],
+                                   salary_record["effective_date"],
+                                   salary_record.get("end_date")
+                               ))
 
         # Save department history if provided
         if "department_history" in employee_data:
             for dept_record in employee_data["department_history"]:
                 cursor.execute("""
-                INSERT INTO department_history
-                (employee_id, department, effective_date, end_date)
-                VALUES (?,?,?,?)
-                """, (
-
-                employee_data["id"],
-                dept_record['department'],
-                dept_record["effective_date"],
-                dept_record.get("end_date")
-                ))
+                               INSERT INTO department_history
+                                   (employee_id, department, effective_date, end_date)
+                               VALUES (?, ?, ?, ?)
+                               """, (
+                                   employee_data["id"],
+                                   dept_record['department'],
+                                   dept_record["effective_date"],
+                                   dept_record.get("end_date")
+                               ))
         conn.commit()
         conn.close()
 
@@ -686,36 +695,90 @@ class Database:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM orders ORDER BY order_date")
-        orders = cursor.fetchall()
+        try:
+            cursor.execute("SELECT * FROM orders ORDER BY order_date")
+            orders = cursor.fetchall()
 
-        # Set column names
-        column_names = [description[0] for description in cursor.description]
+            # Set column names
+            column_names = [description[0] for description in cursor.description]
 
-        # Create column index mapping
-        col_index = {name:idx for idx, name in enumerate(column_names)}
+            # Create column index mapping
+            col_index = {name: idx for idx, name in enumerate(column_names)}
 
-        # Convert to list of dictionaries
-        order_list = []
+            # Convert to list of dictionaries
+            order_list = []
 
-        for ord in orders:
-            # Create orders dictionary
-            orders_dict = {
-                "id":str(ord[col_index["id"]]),
-                "order_number":str(ord[col_index["order_number"]]),
-                "employee_id": str(ord[col_index["employee_id"]]),
-                "order_date": str(ord[col_index["order_date"]]),
-                "effective_date": str(ord[col_index["effective_date"]]),
-                "order_action": str(ord[col_index["order_action"]]),
+            for ord in orders:
+                # Create orders dictionary
+                orders_dict = {
+                    "id": str(ord[col_index["id"]]),
+                    "order_number": str(ord[col_index["order_number"]]),
+                    "employee_id": str(ord[col_index["employee_id"]]),
+                    "order_date": str(ord[col_index["order_date"]]),
+                    "effective_date": str(ord[col_index["effective_date"]]),
+                    "order_action": str(ord[col_index["order_action"]]),
+                }
 
-            }
+                order_list.append(orders_dict)
 
-            order_list.append(orders_dict)
-
-            conn.close()
             return order_list
+        except Exception as e:
+            print(f"Error in get_all_orders: {e}")
+            return []
+        finally:
+            conn.close()
+
+    def fix_orders_table_constraint(self):
+        """Remove UNIQUE constraint from order_number if it exists"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        try:
+            # Check if table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='orders'")
+            if cursor.fetchone():
+                # Backup the data
+                cursor.execute("SELECT * FROM orders")
+                orders_data = cursor.fetchall()
+
+                # Get column names (excluding the id for autoincrement)
+                cursor.execute("PRAGMA table_info(orders)")
+                columns_info = cursor.fetchall()
+                columns = [col[1] for col in columns_info if col[1] != 'id']
+
+                # Drop the old table
+                cursor.execute("DROP TABLE orders")
+
+                # Recreate table without UNIQUE constraint
+                cursor.execute('''
+                               CREATE TABLE orders
+                               (
+                                   id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                                   order_number   TEXT NOT NULL,
+                                   employee_id    TEXT NOT NULL,
+                                   order_date     TEXT NOT NULL,
+                                   effective_date TEXT NOT NULL,
+                                   order_action   TEXT NOT NULL,
+                                   FOREIGN KEY (employee_id) REFERENCES employees (id)
+                               )
+                               ''')
+
+                # Restore data
+                if orders_data:
+                    placeholders = ','.join(['?' for _ in range(len(columns) + 1)])  # +1 for id
+                    for row in orders_data:
+                        cursor.execute(f"INSERT INTO orders VALUES ({placeholders})", row)
+
+                conn.commit()
+                print("Fixed orders table constraint - removed UNIQUE from order_number")
+
+        except Exception as e:
+            print(f"Error fixing orders table: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
 
 if __name__ == "__main__":
     database = Database()
-    print(database.get_all_orders())
-    database.check_schema()
+    print(database.get_all_employees())
+    #database.check_schema()

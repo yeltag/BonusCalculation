@@ -253,7 +253,7 @@ class VariableEntryWidget(QWidget):
             # Basic employee info
             self.variables_table.setItem(row, 0, QTableWidgetItem(employee['id']))
             self.variables_table.setItem(row, 1, QTableWidgetItem(
-                f"{employee['first_name']} {employee['last_name']}"
+                f"{employee['last_name']} {employee['first_name']} {employee['father_name']}"
             ))
             self.variables_table.setItem(row, 2, QTableWidgetItem(employee['department']))
 

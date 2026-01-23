@@ -3,8 +3,9 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QLineEdit, QDialog, QComboBox, QSpinBox, QGroupBox,
-    QMenu, QToolButton, QFormLayout, QStackedWidget
+    QMenu, QToolButton, QFormLayout, QStackedWidget, QDateEdit, QAbstractScrollArea
 )
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from datetime import datetime, date
@@ -38,6 +39,7 @@ class MainWindow(QMainWindow):
         self.database = Database()
         self.config_manager = ConfigManager(database=self.database)
         self.employees = []
+        self.all_orders = []
         self.setup_ui()
         self.load_employees_from_db()
 
@@ -220,7 +222,7 @@ class MainWindow(QMainWindow):
 
         add_employee_btn = QPushButton("Add New Employee")
         add_employee_btn.setStyleSheet("QPushButton { padding: 8px 16px; font-weight: bold; }")
-        add_employee_btn.clicked.connect(self.add_employee)
+        add_employee_btn.clicked.connect(self.add_order)
         header_layout.addWidget(add_employee_btn)
 
         layout.addLayout(header_layout)
@@ -265,20 +267,19 @@ class MainWindow(QMainWindow):
 
         # Employee table
         self.employee_table = EmployeeTableWidget(self)
-        self.employee_table.setColumnCount(8)  # Changed from 7 to 8
+        self.employee_table.setColumnCount(6)  # Changed from 7 to 8
         self.employee_table.setHorizontalHeaderLabels([
-            "ID", "First Name", "Last Name", "Father's Name", "Department", "Salary", "Status", "Actions"
+            "ID", "Name", "Department", "Salary", "Status", "Actions"
             # Added Father's Name
         ])
         header = self.employee_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # First Name
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Last Name
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Father's Name - NEW
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Department
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Salary
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Status
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # Actions
+
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Department
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Salary
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Status
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Actions
 
         self.employee_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.employee_table)
@@ -372,6 +373,7 @@ class MainWindow(QMainWindow):
         # Results table
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(6)
+        self.results_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.results_table.setHorizontalHeaderLabels([
             "Employee ID", "Name", "Department", "Base Salary", "Bonus Amount", "Total"
         ])
@@ -429,49 +431,71 @@ class MainWindow(QMainWindow):
 
         # Search and filters
         filter_group = QGroupBox("Search and Filters")
-        filter_layout = QHBoxLayout()
+        order_filter_layout = QHBoxLayout()
 
-        filter_layout.addWidget(QLabel("Search:"))
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by name, ID, or order type...")
-        self.search_input.textChanged.connect(self.filter_orders)
-        self.search_input.setMinimumWidth(200)
-        filter_layout.addWidget(self.search_input)
+        order_filter_layout.addWidget(QLabel("Search:"))
+        self.orders_search_input = QLineEdit()
+        self.orders_search_input.setPlaceholderText("Search by name, ID, or order type...")
+        self.orders_search_input.textChanged.connect(self.filter_orders)
+        self.orders_search_input.setMinimumWidth(200)
+        order_filter_layout.addWidget(self.orders_search_input)
+        layout.addLayout(order_filter_layout)
 
-        period_group = QGroupBox("Calculation Period")
-        period_layout = QHBoxLayout()
+        # Date range filter - REPLACED the month/year combo boxes
+        date_range_group = QGroupBox("Date Range Filter")
+        date_range_layout = QHBoxLayout()
 
-        period_layout.addWidget(QLabel("Month:"))
-        self.calc_month_combo = QComboBox()
-        months = ["January", "February", "March", "April", "May", "June",
-                  "July", "August", "September", "October", "November", "December"]
-        self.calc_month_combo.addItems(months)
-        self.calc_month_combo.setCurrentIndex(datetime.now().month - 1)
-        period_layout.addWidget(self.calc_month_combo)
+        # From date
+        date_range_layout.addWidget(QLabel("From:"))
+        self.from_date_edit = QDateEdit()
+        self.from_date_edit.setCalendarPopup(True)
+        self.from_date_edit.setDate(datetime.now().date().replace(day=1))  # First day of current month
+        self.from_date_edit.dateChanged.connect(self.filter_orders)
+        date_range_layout.addWidget(self.from_date_edit)
 
-        period_layout.addWidget(QLabel("Year:"))
-        self.calc_year_spin = QSpinBox()
-        self.calc_year_spin.setRange(2000, 2050)
-        self.calc_year_spin.setValue(datetime.now().year)
-        period_layout.addWidget(self.calc_year_spin)
+        # To date
+        date_range_layout.addWidget(QLabel("To:"))
+        self.to_date_edit = QDateEdit()
+        self.to_date_edit.setCalendarPopup(True)
+        # Set to last day of current month
+        today = datetime.now().date()
+        import calendar
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        self.to_date_edit.setDate(today.replace(day=last_day))
+        self.to_date_edit.dateChanged.connect(self.filter_orders)
+        date_range_layout.addWidget(self.to_date_edit)
 
-        period_layout.addStretch()
+        # Reset button
+        reset_date_btn = QPushButton("Reset Date Range")
+        reset_date_btn.clicked.connect(self.reset_date_range)
+        date_range_layout.addWidget(reset_date_btn)
 
-        filter_group.setLayout(period_layout)
+        date_range_layout.addStretch()
 
-        layout.addWidget(filter_group)
+        # Add order type filter
+        date_range_layout.addWidget(QLabel("Order Type:"))
+        self.order_type_filter_combo = QComboBox()
+        self.order_type_filter_combo.addItem("All Types")
+        self.order_type_filter_combo.addItems(["employment", "termination", "salary change", "department change"])
+        self.order_type_filter_combo.currentTextChanged.connect(self.filter_orders)
+        date_range_layout.addWidget(self.order_type_filter_combo)
+
+        date_range_group.setLayout(date_range_layout)
+
+        layout.addWidget(date_range_group)
 
         # Orders table
         self.orders_table = EmployeeTableWidget(self)
-        self.orders_table.setColumnCount(5)
-        self.orders_table.setHorizontalHeaderLabels((["Number","Date","ID","Name","Order Type"]))
+        self.orders_table.setColumnCount(6)
+        self.orders_table.setHorizontalHeaderLabels((["Number","Order Date", "Effective Date", "Employee ID", "Name", "Order Type"]))
 
         header = self.orders_table.horizontalHeader()
         header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Number
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  #Date
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  #ID
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  #Name
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  #Order Type
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  #Order Date
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  #Effective Date
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  #Employee ID
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  #Name
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Order Type
 
         self.orders_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.orders_table)
@@ -513,6 +537,10 @@ class MainWindow(QMainWindow):
         self.display_employees(self.employees)
         self.update_employee_count()
 
+        # Reset employee name dictionary
+        if hasattr(self, 'employee_name_dict'):
+            delattr(self, 'employee_name_dict')
+
     def update_employee_count(self):
         """Update the employee count label"""
         total = len(self.employees)
@@ -530,10 +558,12 @@ class MainWindow(QMainWindow):
         for row, employee in enumerate(employees):
             # Employee data
             self.employee_table.setItem(row, 0, QTableWidgetItem(employee["id"]))
-            self.employee_table.setItem(row, 1, QTableWidgetItem(employee["first_name"]))
-            self.employee_table.setItem(row, 2, QTableWidgetItem(employee["last_name"]))
-            self.employee_table.setItem(row, 3, QTableWidgetItem(employee.get("father_name", "")))  # NEW FIELD
-            self.employee_table.setItem(row, 4, QTableWidgetItem(str(employee["department"])))
+
+            self.employee_table.setItem(row, 2, QTableWidgetItem(str(employee["department"])))
+
+            # Get employee name - fetch directly from database
+            employee_name = self.get_employee_name_from_db(employee["id"])
+            self.employee_table.setItem(row, 1, QTableWidgetItem(employee_name))
 
             # In display_employees method, around line 447:
             try:
@@ -552,7 +582,7 @@ class MainWindow(QMainWindow):
 
             salary_item = QTableWidgetItem(f"${employee['salary']:,.2f}")
             salary_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.employee_table.setItem(row, 5, salary_item)
+            self.employee_table.setItem(row, 3, salary_item)
 
             # Status with color coding
             status_item = QTableWidgetItem(employee["status"])
@@ -562,7 +592,7 @@ class MainWindow(QMainWindow):
             else:
                 status_item.setForeground(Qt.GlobalColor.darkGreen)
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.employee_table.setItem(row, 6, status_item)
+            self.employee_table.setItem(row, 4, status_item)
 
             # Action menu button
             action_btn = QToolButton()
@@ -573,18 +603,25 @@ class MainWindow(QMainWindow):
             # Create menu
             menu = QMenu(self)
 
-            change_details_action = QAction("📝 Change Status/Details", self)
-            change_details_action.triggered.connect(lambda checked, emp=employee: self.change_employee_details(emp))
-            menu.addAction(change_details_action)
+            change_salary_action = QAction("📝 Change Salary", self)
+
+            change_salary_action.triggered.connect(lambda checked, emp=employee:self.terminate_employee(emp,"salary change"))
+            menu.addAction(change_salary_action)
+
+            change_department_action = QAction("📝 Change Department", self)
+
+            change_department_action.triggered.connect(lambda checked, emp=employee:self.terminate_employee(emp,"department change"))
+            menu.addAction(change_department_action)
 
             terminate_action = QAction("🔴 Terminate Employee", self)
-            terminate_action.triggered.connect(lambda checked, emp=employee: self.terminate_employee(emp))
+            terminate_action.triggered.connect(lambda checked, emp=employee: self.terminate_employee(emp,"termination"))
+
             menu.addAction(terminate_action)
 
             action_btn.setMenu(menu)
 
             # Add button to table - column index changed from 6 to 7
-            self.employee_table.setCellWidget(row, 7, action_btn)
+            self.employee_table.setCellWidget(row, 5, action_btn)
     def filter_employees(self):
         """Filter employees based on search criteria"""
         search_text = self.search_input.text().lower()
@@ -625,50 +662,36 @@ class MainWindow(QMainWindow):
                 f"Showing {total} of {len(self.employees)} employees ({active} active, {terminated} terminated)"
             )
 
-    def change_employee_details(self, employee):
-        """Open dialog to change employee details"""
-        dialog = EmployeeStatusDialog(self, self.database, self.config_manager, employee)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.load_employees_from_db()
-            QMessageBox.information(self, "Success", "Employee details updated successfully!")
+    # def change_employee_details(self, employee):
+    #     """Open dialog to change employee details"""
+    #     dialog = EmployeeStatusDialog(self, self.database, self.config_manager, employee)
+    #     if dialog.exec() == QDialog.DialogCode.Accepted:
+    #         self.load_employees_from_db()
+    #         QMessageBox.information(self, "Success", "Employee details updated successfully!")
 
-    def terminate_employee(self, employee):
+    def terminate_employee(self, employee,order_type):
         """Terminate an employee"""
-        if employee["status"] == "Terminated":
+        if employee["status"].lower() == "terminated":
             QMessageBox.information(self, "Already Terminated",
                                     f"Employee {employee['first_name']} {employee['last_name']} is already terminated.")
             return
-
-        reply = QMessageBox.question(self, "Confirm Termination",
-                                     f"Are you sure you want to terminate {employee['first_name']} {employee['last_name']}?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            # Update employee status to Terminated
-            updated_employee = employee.copy()
-            updated_employee["status"] = "Terminated"
-
-            # Save to database
-            self.database.save_employee(updated_employee)
-            self.load_employees_from_db()
-
-            QMessageBox.information(self, "Employee Terminated",
-                                    f"{employee['first_name']} {employee['last_name']} has been terminated.")
+        else:
+            self.add_order(employee,order_type)
 
     # Employee Management Methods
-    def add_employee(self):
-        """Open dialog to add new employee"""
-        dialog = EmployeeDialog(self, None, self.config_manager)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            new_employee = dialog.get_employee_data()
-            existing_ids = [emp["id"] for emp in self.employees]
-            if new_employee["id"] in existing_ids:
-                QMessageBox.warning(self, "Error", f"Employee ID {new_employee['id']} already exists!")
-                return
-            self.database.save_employee(new_employee)
-            self.load_employees_from_db()
-            QMessageBox.information(self, "Success",
-                                    f"Employee {new_employee['first_name']} {new_employee['last_name']} added successfully!")
+    # def add_employee(self):
+    #     """Open dialog to add new employee"""
+    #     dialog = EmployeeDialog(self, None, self.config_manager)
+    #     if dialog.exec() == QDialog.DialogCode.Accepted:
+    #         new_employee = dialog.get_employee_data()
+    #         existing_ids = [emp["id"] for emp in self.employees]
+    #         if new_employee["id"] in existing_ids:
+    #             QMessageBox.warning(self, "Error", f"Employee ID {new_employee['id']} already exists!")
+    #             return
+    #         self.database.save_employee(new_employee)
+    #         self.load_employees_from_db()
+    #         QMessageBox.information(self, "Success",
+    #                                 f"Employee {new_employee['first_name']} {new_employee['last_name']} added successfully!")
 
     # Bonus Calculation Methods
     def open_variable_entry(self):
@@ -825,31 +848,167 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentIndex(4)
         self.load_orders_from_db()
 
-    def add_order(self):
-        dialog = OrderDialog(self, None, self.config_manager)
+    def add_order(self,employee=None,order_type = None):
+        """Open dialog to add new order"""
+        dialog = OrderDialog(self, None, self.config_manager,employee,order_type)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh employees list in case a new employee was added
+            self.load_employees_from_db()
+
+            # Refresh orders list after adding new order
+            self.load_orders_from_db()
+            QMessageBox.information(self, "Success", "Order added successfully!")
+        else:
+            print("DEBUG: Order dialog cancelled or closed")
 
     def filter_orders(self):
-        pass
+        """Filter orders based on search criteria and date range"""
+        print(f"DEBUG filter_orders: all_orders length = {len(self.all_orders) if hasattr(self, 'all_orders') else 'no attr'}")
+
+        if not hasattr(self, 'all_orders') or not self.all_orders:
+            # If no orders, clear the table and return
+            self.orders_table.setRowCount(0)
+            # Show placeholder
+            self.orders_table.setRowCount(1)
+            placeholder_item = QTableWidgetItem("No orders found")
+            placeholder_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.orders_table.setSpan(0, 0, 1, 6)
+            self.orders_table.setItem(0, 0, placeholder_item)
+            return
+
+        search_text = self.orders_search_input.text().lower()
+        from_date = self.from_date_edit.date().toPyDate()
+        to_date = self.to_date_edit.date().toPyDate()
+        order_type_filter = self.order_type_filter_combo.currentText()
+
+        filtered_orders = []
+        for index, order in enumerate(self.all_orders):
+            # Convert order_date string to datetime.date object
+            try:
+                order_date = datetime.strptime(order["order_date"], "%Y-%m-%d").date()
+                print(f"DEBUG: Order {index} date: {order_date} (string: {order['order_date']})")
+            except:
+                print(f"DEBUG: Error parsing date for order {index}: {order['order_date']}, Error: {e}")
+                order_date = None
+
+            # Date range filter
+            if order_date and (order_date < from_date or order_date > to_date):
+                continue
+
+            # Order type filter
+            if order_type_filter != "All Types" and order["order_action"] != order_type_filter:
+                print(f"DEBUG: Order {index} filtered out by type")
+
+                continue
+
+            # Search text filter
+            if search_text:
+                # Search in various fields
+                matches = (
+                        search_text in order["order_number"].lower() or
+                        search_text in order["employee_id"].lower() or
+                        search_text in order["order_action"].lower()
+                )
+
+                # Also search in employee name if available
+                employee_name = self.get_employee_name(order["employee_id"])
+                if employee_name and search_text in employee_name.lower():
+                    matches = True
+
+                if not matches:
+                    print(f"DEBUG: Order {index} filtered out by search text")
+                    continue
+
+            filtered_orders.append(order)
+            print(f"DEBUG: Order {index} passed filters")
+
+        print(f"DEBUG: Total filtered orders: {len(filtered_orders)}")
+        self.display_orders(filtered_orders)
 
     def load_orders_from_db(self):
         """Load orders from database"""
-        self.orders = self.database.get_all_orders()
-        self.display_orders(self.orders)
+        try:
+            self.all_orders = self.database.get_all_orders()
+            if self.all_orders is None:
+                self.all_orders = []
+        except Exception as e:
+            print(f"Error loading orders: {e}")
+            self.all_orders = []
 
-    def display_orders(self,orders):
+        self.filter_orders()  # Apply current filters
+
+        # Update status bar
+        total_orders = len(self.all_orders)
+        displayed_orders = self.orders_table.rowCount()
+        self.statusBar().showMessage(f"Loaded {total_orders} total orders, showing {displayed_orders} after filtering")
+
+    def display_orders(self, orders):
         """Display orders in table"""
         if orders:
             self.orders_table.setRowCount(len(orders))
 
             for row, order in enumerate(orders):
                 # Order data
-                self.orders_table.setItem(row, 0,QTableWidgetItem(orders["order_number"]))
-                self.orders_table.setItem(row, 1, QTableWidgetItem(orders["order_date"]))
-                self.orders_table.setItem(row, 2, QTableWidgetItem(orders["employee_id"]))
-                self.orders_table.setItem(row, 4, QTableWidgetItem(orders["order_action"]))
-                employee_name = self.database.get_all_employees()[orders["employee_id"]]["first_name"]
-                self.orders_table.setItem(row, 3, QTableWidgetItem(employee_name))
+                self.orders_table.setItem(row, 0, QTableWidgetItem(order["order_number"]))
+                self.orders_table.setItem(row, 1, QTableWidgetItem(order["order_date"]))
+                self.orders_table.setItem(row, 2, QTableWidgetItem(order.get("effective_date", "")))
+                self.orders_table.setItem(row, 3, QTableWidgetItem(order["employee_id"]))
+                self.orders_table.setItem(row, 5, QTableWidgetItem(order["order_action"]))
 
+                # Get employee name - fetch directly from database
+                employee_name = self.get_employee_name_from_db(order["employee_id"])
+                self.orders_table.setItem(row, 4, QTableWidgetItem(employee_name))
         else:
-            return
+            # Clear the table if no orders
+            self.orders_table.setRowCount(0)
+
+            # Show a placeholder message
+            self.orders_table.setRowCount(1)
+            placeholder_item = QTableWidgetItem("No orders found for the selected criteria")
+            placeholder_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.orders_table.setSpan(0, 0, 1, 6)  # Span all columns
+            self.orders_table.setItem(0, 0, placeholder_item)
+
+    def reset_date_range(self):
+        """Reset the date range to current month"""
+        today = datetime.now().date()
+        import calendar
+
+        # Set from date to first day of current month
+        self.from_date_edit.setDate(today.replace(day=1))
+
+        # Set to date to last day of current month
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        self.to_date_edit.setDate(today.replace(day=last_day))
+
+        # Trigger filter update
+        self.filter_orders()
+
+    def get_employee_name(self, employee_id):
+        """Get employee full name from ID"""
+        # Create a dictionary for fast lookup if not exists
+        if not hasattr(self, 'employee_name_dict'):
+            self.employee_name_dict = {}
+            for emp in self.employees:
+                self.employee_name_dict[emp["id"]] = f"{emp['first_name']} {emp['last_name']}"
+
+        return self.employee_name_dict.get(employee_id, "Unknown")
+
+    def get_employee_name_from_db(self, employee_id):
+        """Get employee name directly from database"""
+        try:
+            # Get the employee directly from database
+            employee = self.database.get_employee_by_id(employee_id)
+            if employee:
+                return f"{employee['last_name']} {employee['first_name']} {employee['father_name']}"
+            else:
+                # Try to find in current employees list as fallback
+                for emp in self.employees:
+                    if emp["id"] == employee_id:
+                        return f"{emp['first_name']} {emp['last_name']} {employee['father_name']}"
+                return "Unknown"
+        except Exception as e:
+            print(f"Error getting employee name for {employee_id}: {e}")
+            return "Unknown"
+
 
