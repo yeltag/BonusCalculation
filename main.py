@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt
 from login_window import LoginWindow
 import os
 import json
+from database import Database
 
 
 
@@ -70,7 +71,7 @@ def initialize_system():
             json.dump(default_config, f, indent=4)
 
     # Initialize database
-    from database import Database
+
     db = Database()
 
     # Verify no unwanted tables exist

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QLineEdit, QDialog, QComboBox, QSpinBox, QGroupBox,
-    QMenu, QToolButton, QFormLayout, QStackedWidget, QDateEdit, QAbstractScrollArea
+    QMenu, QToolButton, QFormLayout, QStackedWidget, QDateEdit, QAbstractScrollArea, QListWidget
 )
 
 from PyQt6.QtCore import Qt
@@ -99,10 +99,25 @@ class MainWindow(QMainWindow):
         bonus_menu.addAction(calculate_bonus_action)
 
         # Configuration menu
+        # config_menu = menubar.addMenu("Configuration")
+        # config_action = QAction("System Configuration", self)
+        # config_action.triggered.connect(self.open_configuration)
+        # config_menu.addAction(config_action)
+
         config_menu = menubar.addMenu("Configuration")
-        config_action = QAction("System Configuration", self)
-        config_action.triggered.connect(self.open_configuration)
-        config_menu.addAction(config_action)
+        department_action = QAction("Departments",self)
+        department_action.triggered.connect(self.open_departments)
+        config_menu.addAction(department_action)
+
+        kpi_action = QAction("KPIs", self)
+        kpi_action.triggered.connect(self.open_kpis)
+        config_menu.addAction(kpi_action)
+
+        variable_action = QAction("Variables", self)
+        variable_action.triggered.connect(self.open_variables)
+        config_menu.addAction(variable_action)
+
+
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -130,6 +145,10 @@ class MainWindow(QMainWindow):
         self.variable_entry_page = self.create_variable_entry_page()
         self.bonus_calculation_page = self.create_bonus_calculation_page()
         self.orders_page = self.create_orders_page()
+        self.department_page=self.create_department_page()
+        #self.kpi_page = self.create_kpi_page()
+        #self.manage_variable_page=self.create_variable_page()
+
 
         # Add pages to stacked widget
         self.stacked_widget.addWidget(self.dashboard_page)
@@ -137,6 +156,9 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.variable_entry_page)
         self.stacked_widget.addWidget(self.bonus_calculation_page)
         self.stacked_widget.addWidget(self.orders_page)
+        self.stacked_widget.addWidget(self.department_page)
+        #self.stacked_widget.addWidget(self.kpi_page)
+        #self.stacked_widget.addWidget(self.manage_variable_page)
 
 
     def create_dashboard_page(self):
@@ -1010,5 +1032,72 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Error getting employee name for {employee_id}: {e}")
             return "Unknown"
+
+    def open_departments(self):
+        """Show department page"""
+        self.stacked_widget.setCurrentIndex(5)
+        self.statusBar().showMessage("Manage departments")
+
+
+    def open_kpis(self):
+        pass
+
+    def open_variables(self):
+        pass
+
+    def create_department_page(self):
+        """Create departments page"""
+        page = QWidget()
+        layout = QVBoxLayout()
+
+        # Header
+        header_layout = QHBoxLayout()
+
+        title_label = QLabel("Manage Departments")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50;")
+        header_layout.addWidget(title_label)
+
+        header_layout.addStretch()
+
+        self.dept_list = QListWidget()
+        self.load_departments()
+
+        layout.addWidget(self.dept_list)
+
+        # Department buttons
+
+        dept_buttons_layout = QHBoxLayout()
+        add_dept_btn = QPushButton("Add Department")
+        add_dept_btn.clicked.connect(self.add_departments)
+
+        remove_dept_btn = QPushButton("Remove Selected")
+        remove_dept_btn.clicked.connect(self.remove_departments)
+
+        dept_buttons_layout.addWidget(add_dept_btn)
+        dept_buttons_layout.addWidget(remove_dept_btn)
+        dept_buttons_layout.addStretch()
+
+        layout.addLayout(dept_buttons_layout)
+        page.setLayout(layout)
+        return page
+
+    def create_kpi_page(self):
+        pass
+
+    def create_variable_page(self):
+        pass
+
+    def load_departments(self):
+        self.dept_list.clear()
+        departments = self.config_manager.get_departments()
+        self.dept_list.addItems(departments)
+
+    def add_departments(self):
+        pass
+
+    def remove_departments(self):
+        pass
+
+
 
 
