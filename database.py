@@ -139,6 +139,8 @@ class Database:
                 order_date TEXT NOT NULL,
                 effective_date TEXT NOT NULL,
                 order_action TEXT NOT NULL, --"employment", "salary change", "department change", 'termination"
+                new_department TEXT,
+                new_salary TEXT,
                 FOREIGN KEY (employee_id) REFERENCES employees (id)
             )
         ''')
@@ -717,6 +719,8 @@ class Database:
                     "order_date": str(ord[col_index["order_date"]]),
                     "effective_date": str(ord[col_index["effective_date"]]),
                     "order_action": str(ord[col_index["order_action"]]),
+                    "new_department": str(ord[col_index["new_department"]]),
+                    "new_salary":str(ord[col_index["new_salary"]])
                 }
 
                 order_list.append(orders_dict)
@@ -759,6 +763,8 @@ class Database:
                                    order_date     TEXT NOT NULL,
                                    effective_date TEXT NOT NULL,
                                    order_action   TEXT NOT NULL,
+                                   new_department TEXT,
+                                   new_salary TEXT,
                                    FOREIGN KEY (employee_id) REFERENCES employees (id)
                                )
                                ''')

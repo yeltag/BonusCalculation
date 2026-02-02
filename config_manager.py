@@ -84,6 +84,17 @@ class ConfigManager:
             return self.save_config()
         return False
 
+    def save_edited_department(self,department,new_department_name):
+        departments = self.get_departments()
+        if department in departments:
+            if new_department_name not in departments:
+                departments[departments.index(department)]= new_department_name
+                self.config["departments"] = departments
+                return self.save_config()
+        return False
+
+
+
     def get_kpis(self):
         """Get KPIs - prefer database, fallback to config file"""
         if self.database:

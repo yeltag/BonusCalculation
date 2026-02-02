@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QLineEdit, QDialog, QComboBox, QSpinBox, QGroupBox,
-    QMenu, QToolButton, QFormLayout, QStackedWidget, QDateEdit, QAbstractScrollArea, QListWidget
+    QMenu, QToolButton, QFormLayout, QStackedWidget, QDateEdit, QAbstractScrollArea, QListWidget, QInputDialog
 )
 
 from PyQt6.QtCore import Qt
@@ -508,8 +508,8 @@ class MainWindow(QMainWindow):
 
         # Orders table
         self.orders_table = EmployeeTableWidget(self)
-        self.orders_table.setColumnCount(6)
-        self.orders_table.setHorizontalHeaderLabels((["Number","Order Date", "Effective Date", "Employee ID", "Name", "Order Type"]))
+        self.orders_table.setColumnCount(8)
+        self.orders_table.setHorizontalHeaderLabels((["Number","Order Date", "Effective Date", "Employee ID", "Name", "Order Type","Department", "Salary"]))
 
         header = self.orders_table.horizontalHeader()
         header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Number
@@ -518,6 +518,8 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  #Employee ID
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  #Name
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Order Type
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Department
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents) # Salary
 
         self.orders_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.orders_table)
@@ -976,6 +978,8 @@ class MainWindow(QMainWindow):
                 self.orders_table.setItem(row, 2, QTableWidgetItem(order.get("effective_date", "")))
                 self.orders_table.setItem(row, 3, QTableWidgetItem(order["employee_id"]))
                 self.orders_table.setItem(row, 5, QTableWidgetItem(order["order_action"]))
+                self.orders_table.setItem(row,6,QTableWidgetItem(order["new_department"]))
+                self.orders_table.setItem(row,7,QTableWidgetItem(order["new_salary"]))
 
                 # Get employee name - fetch directly from database
                 employee_name = self.get_employee_name_from_db(order["employee_id"])
@@ -1073,7 +1077,11 @@ class MainWindow(QMainWindow):
         remove_dept_btn = QPushButton("Remove Selected")
         remove_dept_btn.clicked.connect(self.remove_departments)
 
+        edit_dept_btn = QPushButton("Edit Selected")
+        edit_dept_btn.clicked.connect(self.edit_department)
+
         dept_buttons_layout.addWidget(add_dept_btn)
+        dept_buttons_layout.addWidget(edit_dept_btn)
         dept_buttons_layout.addWidget(remove_dept_btn)
         dept_buttons_layout.addStretch()
 
@@ -1093,9 +1101,78 @@ class MainWindow(QMainWindow):
         self.dept_list.addItems(departments)
 
     def add_departments(self):
-        pass
+        department, ok = QInputDialog.getText(self, "Add Department", "Department name:")
+        if ok and department:
+            if self.config_manager.add_department(department.strip()):
+                self.load_departments()
+                QMessageBox.information(self, "Success", "Department added successfully!")
+
+            else:
+                QMessageBox.warning(self, "Error", "Department already exists!")
 
     def remove_departments(self):
+        current_item = self.dept_list.currentItem()
+        if current_item:
+            department = current_item.text()
+            reply = QMessageBox.question(self, "Confirm", f"Remove department:{department}?")
+            if reply == QMessageBox.StandardButton.Yes:
+                employees = self.database.get_all_employees()
+                emp_in_department = []
+                for emp in employees:
+                    if emp["department"] == department:
+                        emp_in_department.append(emp)
+                orders = self.database.get_all_orders()
+                dept_orders = []
+                for order in orders:
+                    if order["new_department"] == department:
+                        dept_orders.append(department)
+                if emp_in_department or dept_orders:
+                    message = QMessageBox(self)
+                    message.setWindowTitle("Employment history exists")
+                    message.setText("The selected deprtment has employment history, so cannot be removed.  The department may be closed for further employment.")
+                    close_button = QPushButton("Close department")
+                    message.addButton(close_button,QMessageBox.ButtonRole.ActionRole)
+                    message.setStandardButtons(QMessageBox.StandardButton.Cancel)
+                    message.exec()
+                    if message.clickedButton() == close_button:
+                        self.close_department(department)
+
+                else:
+
+                    if self.config_manager.remove_department(department):
+                        self.load_departments()
+                        QMessageBox.information(self, "Success", "Department removed!")
+
+        else:
+            QMessageBox.warning(self, "Error", "Please select a department to remove!")
+
+
+    def edit_department(self):
+        current_item = self.dept_list.currentItem()
+
+
+        if current_item:
+            department = current_item.text()
+            new_department, ok = QInputDialog.getText(self, "Edit Department", "Change department name to:",
+                                                      QLineEdit.EchoMode.Normal, f"{department}")
+            if ok and new_department:
+                reply = QMessageBox.question(self, "Confirm", f"Change department name to: {new_department}?")
+                if reply == QMessageBox.StandardButton.Yes:
+                    if self.config_manager.save_edited_department(department,new_department):
+                        employees = self.database.get_all_employees()
+                        for emp in employees:
+                            if emp["department"] == department:
+                                emp["department"] = new_department
+                                self.database.save_employee(emp)
+                        self.load_departments()
+                        QMessageBox.information(self, "Success", "Department name changed successfully!")
+                    else:
+                        QMessageBox.warning(self, "Error", "Department already exists!")
+        else:
+            QMessageBox.warning(self, "Error", "Please select a department to edit!")
+
+
+    def close_department(self,department):
         pass
 
 

@@ -478,7 +478,9 @@ class OrderDialog(QDialog):
             employee_id=employee_id,
             order_date=self.order_date_input.date().toString("yyyy-MM-dd"),
             effective_date=employee_data["hire_date"],
-            order_action="employment"
+            order_action="employment",
+            new_department = self.department_combo.currentText(),
+            new_salary = self.salary_input.text().strip()
         )
 
     def save_non_employment_order(self, order_type):
@@ -515,10 +517,12 @@ class OrderDialog(QDialog):
             order_date=self.order_date_input.date().toString("yyyy-MM-dd"),
             effective_date=self.effective_date_input.date().toString(
                 "yyyy-MM-dd") if self.effective_date_input else self.order_date_input.date().toString("yyyy-MM-dd"),
-            order_action=order_type
+            order_action=order_type,
+            new_department = self.new_departments_combo.currentText() if order_type == "department change" else '',
+            new_salary = self.new_salary_input.text().strip() if order_type == "salary change" else ''
         )
 
-    def save_order_record(self, order_number, employee_id, order_date, effective_date, order_action):
+    def save_order_record(self, order_number, employee_id, order_date, effective_date, order_action,new_department,new_salary):
         """Save order to the orders table"""
         conn = None
         try:
@@ -526,9 +530,9 @@ class OrderDialog(QDialog):
             cursor = conn.cursor()
 
             cursor.execute("""
-                           INSERT INTO orders (order_number, employee_id, order_date, effective_date, order_action)
-                           VALUES (?, ?, ?, ?, ?)
-                           """, (order_number, employee_id, order_date, effective_date, order_action))
+                           INSERT INTO orders (order_number, employee_id, order_date, effective_date, order_action, new_department, new_salary)
+                           VALUES (?, ?, ?, ?, ?,?,?)
+                           """, (order_number, employee_id, order_date, effective_date, order_action, new_department, new_salary))
 
             conn.commit()
             print(f"DEBUG: Order saved - Number: {order_number}, Employee: {employee_id}, Action: {order_action}")

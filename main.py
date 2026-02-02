@@ -40,6 +40,7 @@ def main():
         # Create the application
         app = QApplication(sys.argv)
 
+
         # System initialization
         initialize_system()
 
