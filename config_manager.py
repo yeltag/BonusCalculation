@@ -13,7 +13,8 @@ class ConfigManager:
     def load_config(self):
         """Load configuration from JSON file"""
         default_config = {
-            "departments": ["Sales","Marketing","IT","HR","Finance","Operations"],
+
+            "departments":{"Sales": "active","IT":"active","HR":"active","Finance":"active","Operations":"active"},
             "kpis":[]
 
         }
@@ -66,31 +67,44 @@ class ConfigManager:
 
 
     def get_departments(self):
-        return self.config.get("departments",[])
+        #return self.config.get("departments",[])
+        return self.config.get("departments", {})
+
 
     def add_department(self,department):
         departments = self.get_departments()
-        if department not in departments:
-            departments.append(department)
+        #if department not in departments:
+        if department not in departments.keys():
+            departments[department]="active"
             self.config["departments"] = departments
             return self.save_config()
         return False
 
     def remove_department(self, department):
         departments = self.get_departments()
-        if department in departments:
-            departments.remove(department)
+        #if department in departments:
+        if department in departments.keys():
+            departments.pop(department)
             self.config["departments"] = departments
             return self.save_config()
         return False
 
     def save_edited_department(self,department,new_department_name):
         departments = self.get_departments()
-        if department in departments:
-            if new_department_name not in departments:
-                departments[departments.index(department)]= new_department_name
+        if department in departments.keys():
+            if new_department_name not in departments.keys():
+                departments[new_department_name]= "active"
+                departments.pop(department)
                 self.config["departments"] = departments
                 return self.save_config()
+        return False
+
+    def close_department(self,department):
+        departments = self.get_departments()
+        if department in departments.keys():
+            departments[department]="closed"
+            self.config["departments"] = departments
+            return self.save_config()
         return False
 
 

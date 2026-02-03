@@ -69,7 +69,11 @@ class OrderDialog(QDialog):
             departments.append(self.employee["department"])
         else:
             if self.config_manager:
-                departments = self.config_manager.get_departments()
+                all_departments = self.config_manager.get_departments()
+                for dept in all_departments:
+                    if all_departments[dept] == "active":
+                        departments.append(dept)
+
                 #self.department_combo.addItems(departments)
             else:
                 # Fallback departments if config_manager is not available
@@ -131,7 +135,23 @@ class OrderDialog(QDialog):
 
 
     def order_type_changed(self,text):
+
         self.text = text
+
+        self.department_combo.clear()
+        new_departments = []
+        departments = self.config_manager.get_departments()
+
+        if text != "employment":
+            new_departments.extend(departments)
+        else:
+
+            for dept in departments:
+                if departments[dept] == "active":
+                    new_departments.append(dept)
+
+        self.department_combo.addItems(new_departments)
+
         # Clear existing widgets safely
         for i in reversed(range(self.order_type_layout.count())):
             widget = self.order_type_layout.itemAt(i).widget()
@@ -199,7 +219,10 @@ class OrderDialog(QDialog):
                 self.new_departments_combo = QComboBox()
                 departments = []
                 if self.config_manager:
-                    departments = self.config_manager.get_departments()
+                    all_departments = self.config_manager.get_departments()
+                    for dept in all_departments:
+                        if all_departments[dept] == "active":
+                            departments.append(dept)
                     # self.department_combo.addItems(departments)
                 else:
                     # Fallback departments if config_manager is not available

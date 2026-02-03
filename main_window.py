@@ -1135,7 +1135,7 @@ class MainWindow(QMainWindow):
                     message.setStandardButtons(QMessageBox.StandardButton.Cancel)
                     message.exec()
                     if message.clickedButton() == close_button:
-                        self.close_department(department)
+                        self.close_departments(department)
 
                 else:
 
@@ -1172,8 +1172,16 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", "Please select a department to edit!")
 
 
-    def close_department(self,department):
-        pass
+    def close_departments(self,department):
+        current_item = self.dept_list.currentItem()
+        if current_item:
+            reply = QMessageBox.question(self,"Confirm","The selected department will be restricted for employment if closed.  Do you want to continue?")
+            if reply ==QMessageBox.StandardButton.Yes:
+                department = current_item.text()
+                if self.config_manager.close_department(department):
+                    QMessageBox.information(self, "Success", "Department closed!")
+        else:
+            QMessageBox.warning(self,"Error", "Please select a department!")
 
 
 
