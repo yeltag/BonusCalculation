@@ -65,7 +65,7 @@ def initialize_system():
     if not os.path.exists('config.json'):
         print("Creating default configuration...")
         default_config = {
-            "departments": ["Sales", "Marketing", "IT", "HR", "Finance", "Operations"],
+            "departments": {"Sales":"active", "Marketing":"active", "IT":"active", "HR":"active", "Finance":"active", "Operations":"active"},
             "kpis": []
         }
         with open('config.json', 'w') as f:

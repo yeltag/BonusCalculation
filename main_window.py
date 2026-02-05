@@ -24,6 +24,7 @@ from salary_adjustment_dialog_advanced import AdvancedSalaryAdjustmentDialog
 from salary_adjustment_dialog_test import TestSalaryAdjustmentDialog
 from variable_entry_widget import VariableEntryWidget
 from order_dialog import OrderDialog
+from new_page_template import NewPageTemplate
 
 
 class EmployeeTableWidget(QTableWidget):
@@ -512,12 +513,12 @@ class MainWindow(QMainWindow):
         self.orders_table.setHorizontalHeaderLabels((["Number","Order Date", "Effective Date", "Employee ID", "Name", "Order Type","Department", "Salary"]))
 
         header = self.orders_table.horizontalHeader()
-        header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Number
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  #Order Date
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  #Effective Date
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  #Employee ID
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  #Name
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Order Type
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Number
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # Order Date
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents) # Effective Date
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents) # Employee ID
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Name
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents) # Order Type
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Department
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents) # Salary
 
@@ -686,12 +687,6 @@ class MainWindow(QMainWindow):
                 f"Showing {total} of {len(self.employees)} employees ({active} active, {terminated} terminated)"
             )
 
-    # def change_employee_details(self, employee):
-    #     """Open dialog to change employee details"""
-    #     dialog = EmployeeStatusDialog(self, self.database, self.config_manager, employee)
-    #     if dialog.exec() == QDialog.DialogCode.Accepted:
-    #         self.load_employees_from_db()
-    #         QMessageBox.information(self, "Success", "Employee details updated successfully!")
 
     def terminate_employee(self, employee,order_type):
         """Terminate an employee"""
@@ -702,20 +697,7 @@ class MainWindow(QMainWindow):
         else:
             self.add_order(employee,order_type)
 
-    # Employee Management Methods
-    # def add_employee(self):
-    #     """Open dialog to add new employee"""
-    #     dialog = EmployeeDialog(self, None, self.config_manager)
-    #     if dialog.exec() == QDialog.DialogCode.Accepted:
-    #         new_employee = dialog.get_employee_data()
-    #         existing_ids = [emp["id"] for emp in self.employees]
-    #         if new_employee["id"] in existing_ids:
-    #             QMessageBox.warning(self, "Error", f"Employee ID {new_employee['id']} already exists!")
-    #             return
-    #         self.database.save_employee(new_employee)
-    #         self.load_employees_from_db()
-    #         QMessageBox.information(self, "Success",
-    #                                 f"Employee {new_employee['first_name']} {new_employee['last_name']} added successfully!")
+
 
     # Bonus Calculation Methods
     def open_variable_entry(self):
@@ -1050,27 +1032,25 @@ class MainWindow(QMainWindow):
         pass
 
     def create_department_page(self):
-        """Create departments page"""
-        page = QWidget()
-        layout = QVBoxLayout()
 
-        # Header
-        header_layout = QHBoxLayout()
+        # Central widgets
 
-        title_label = QLabel("Manage Departments")
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50;")
-        header_layout.addWidget(title_label)
+        # self.dept_list = QListWidget()
+        # self.load_departments()
+        self.departments_table = QTableWidget()
+        self.departments_table.setColumnCount(2)
+        self.departments_table.setHorizontalHeaderLabels(["Department Name","Status"])
+        header = self.departments_table.horizontalHeader()
+        header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Department Name
+        header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents) #Department status
 
-        header_layout.addStretch()
+        self.departments_table.setSelectionBehaviour(QTableWidget.SelectionBehaviour.SelectRows)
 
-        self.dept_list = QListWidget()
-        self.load_departments()
-
-        layout.addWidget(self.dept_list)
+        central_widgets = []
+        central_widgets.append(self.departments_table)
 
         # Department buttons
 
-        dept_buttons_layout = QHBoxLayout()
         add_dept_btn = QPushButton("Add Department")
         add_dept_btn.clicked.connect(self.add_departments)
 
@@ -1080,14 +1060,14 @@ class MainWindow(QMainWindow):
         edit_dept_btn = QPushButton("Edit Selected")
         edit_dept_btn.clicked.connect(self.edit_department)
 
-        dept_buttons_layout.addWidget(add_dept_btn)
-        dept_buttons_layout.addWidget(edit_dept_btn)
-        dept_buttons_layout.addWidget(remove_dept_btn)
-        dept_buttons_layout.addStretch()
+        button_widgets = []
+        button_widgets.append(add_dept_btn)
+        button_widgets.append(remove_dept_btn)
+        button_widgets.append(edit_dept_btn)
 
-        layout.addLayout(dept_buttons_layout)
-        page.setLayout(layout)
-        return page
+        self.new_department_page = NewPageTemplate("Manage departments",[],central_widgets,button_widgets)
+
+        return self.new_department_page
 
     def create_kpi_page(self):
         pass
