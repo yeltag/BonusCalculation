@@ -118,8 +118,6 @@ class MainWindow(QMainWindow):
         variable_action.triggered.connect(self.open_variables)
         config_menu.addAction(variable_action)
 
-
-
         # Help menu
         help_menu = menubar.addMenu("Help")
         help_action = QAction("User Guide", self)
@@ -1044,7 +1042,11 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Department Name
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents) #Department status
 
-        self.departments_table.setSelectionBehaviour(QTableWidget.SelectionBehaviour.SelectRows)
+        self.departments_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+
+        self.load_departments()
+
+
 
         central_widgets = []
         central_widgets.append(self.departments_table)
@@ -1076,9 +1078,17 @@ class MainWindow(QMainWindow):
         pass
 
     def load_departments(self):
-        self.dept_list.clear()
+        self.departments_table.clearContents()
         departments = self.config_manager.get_departments()
-        self.dept_list.addItems(departments)
+        self.departments_table.setRowCount(len(departments.items()))
+        for row_inx,(name,status) in enumerate(departments.items()):
+            name_item = QTableWidgetItem(name)
+            status_item = QTableWidgetItem(status)
+
+            self.departments_table.setItem(row_inx,0,name_item)
+            self.departments_table.setItem(row_inx,1,status_item)
+
+
 
     def add_departments(self):
         department, ok = QInputDialog.getText(self, "Add Department", "Department name:")
@@ -1091,9 +1101,10 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Error", "Department already exists!")
 
     def remove_departments(self):
-        current_item = self.dept_list.currentItem()
+        current_item = self.departments_table.selectedItems()
+        print(current_item)
         if current_item:
-            department = current_item.text()
+            department = current_item[0].text()
             reply = QMessageBox.question(self, "Confirm", f"Remove department:{department}?")
             if reply == QMessageBox.StandardButton.Yes:
                 employees = self.database.get_all_employees()
@@ -1128,11 +1139,11 @@ class MainWindow(QMainWindow):
 
 
     def edit_department(self):
-        current_item = self.dept_list.currentItem()
+        current_item = self.departments_table.selectedItems()
 
 
         if current_item:
-            department = current_item.text()
+            department = current_item[0].text()
             new_department, ok = QInputDialog.getText(self, "Edit Department", "Change department name to:",
                                                       QLineEdit.EchoMode.Normal, f"{department}")
             if ok and new_department:
@@ -1153,12 +1164,13 @@ class MainWindow(QMainWindow):
 
 
     def close_departments(self,department):
-        current_item = self.dept_list.currentItem()
+        current_item = self.departments_table.selectedItems()
         if current_item:
             reply = QMessageBox.question(self,"Confirm","The selected department will be restricted for employment if closed.  Do you want to continue?")
             if reply ==QMessageBox.StandardButton.Yes:
-                department = current_item.text()
+                department = current_item[0].text()
                 if self.config_manager.close_department(department):
+                    self.load_departments()
                     QMessageBox.information(self, "Success", "Department closed!")
         else:
             QMessageBox.warning(self,"Error", "Please select a department!")
