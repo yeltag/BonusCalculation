@@ -1,4 +1,6 @@
-from PyQt6.QtWidgets import (QWidget,QVBoxLayout, QHBoxLayout,QLabel,QGroupBox)
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QWidget,QVBoxLayout, QHBoxLayout,QLabel,QGroupBox,QLineEdit,QTableWidgetItem)
+
 
 class NewPageTemplate(QWidget):
     def __init__(self,title,search_widgets = [],central_widgets = [],button_widgets = []):
@@ -63,6 +65,60 @@ class NewPageTemplate(QWidget):
 
 
         self.layout.addStretch()
+
+    def create_search_text_tool(self,list_to_filter,search_fields,filtered_table):
+        search_widgets_extention = []
+        search_widgets_extention.append(QLabel("Search:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText(f"Search by {', '.join(search_fields)}...")
+        self.search_input.textChanged.connect(self.filtering_tool(list_to_filter,filtered_table,self.search_input.text()))
+        self.search_input.setMinimumWidth(200)
+        search_widgets_extention.append(self.search_input)
+        return search_widgets_extention
+
+    def filtering_tool(self,list_to_filter,filtered_table,search_input_text):
+
+        if not list_to_filter:
+            header_text = filtered_table.horizontalHeaderItem(0).text().split()[0].lower()
+            filtered_table.setRowCount(1)
+
+            placeholder_item = QTableWidgetItem(f"No {header_text} found")
+            placeholder_item.setTextAlighnment(Qt.AlignmentFlag.AlignCenter)
+            filtered_table.setSpan(0,0,1,filtered_table.columnCount())
+            filtered_table.setItem(0,1,placeholder_item)
+            return
+
+        search_text = search_input_text.lower()
+        filtered_elements = []
+        for index, element in enumerate(list_to_filter):
+            if search_text:
+                matches = False
+                for header in filtered_table.horizontalHeaderItems:
+                   matches == search_text.lower() in element[header.text()].lower()
+                if matches:
+                    filtered_elements.append(element)
+
+        self.display_elements(filtered_elements,filtered_table)
+
+    def display_elements(self,elements,filtered_table):
+
+        if filtered_table:
+            print("filtered table = True")
+        if elements:
+            filtered_table.setRowCount(len(elements))
+            dict_length = elements[0].__len__()
+            for row_ind, element in enumerate(elements):
+                element_list = list(element.values())
+
+                for i in range (dict_length):
+                    element_item = QTableWidgetItem(element_list[i])
+                    filtered_table.setItem(row_ind,i,element_item)
+
+
+
+
+
+
 
 
 

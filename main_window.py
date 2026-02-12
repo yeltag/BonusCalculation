@@ -1033,8 +1033,7 @@ class MainWindow(QMainWindow):
 
         # Central widgets
 
-        # self.dept_list = QListWidget()
-        # self.load_departments()
+
         self.departments_table = QTableWidget()
         self.departments_table.setColumnCount(2)
         self.departments_table.setHorizontalHeaderLabels(["Department Name","Status"])
@@ -1044,12 +1043,15 @@ class MainWindow(QMainWindow):
 
         self.departments_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
 
-        self.load_departments()
-
-
-
         central_widgets = []
+
         central_widgets.append(self.departments_table)
+
+        search_widgets = []
+        list_to_filter = self.load_departments_inner()
+        search_fields = ["Department","Status"]
+        search_text_tool = NewPageTemplate.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
+        search_widgets.extend(search_text_tool)
 
         # Department buttons
 
@@ -1069,6 +1071,8 @@ class MainWindow(QMainWindow):
 
         self.new_department_page = NewPageTemplate("Manage departments",[],central_widgets,button_widgets)
 
+        self.load_departments()
+
         return self.new_department_page
 
     def create_kpi_page(self):
@@ -1078,16 +1082,26 @@ class MainWindow(QMainWindow):
         pass
 
     def load_departments(self):
-        self.departments_table.clearContents()
-        departments = self.config_manager.get_departments()
-        self.departments_table.setRowCount(len(departments.items()))
-        for row_inx,(name,status) in enumerate(departments.items()):
-            name_item = QTableWidgetItem(name)
-            status_item = QTableWidgetItem(status)
+        #self.departments_table.clearContents()
 
-            self.departments_table.setItem(row_inx,0,name_item)
-            self.departments_table.setItem(row_inx,1,status_item)
+        self.load_departments_inner()
 
+        self.new_department_page.display_elements(self.departments_list,self.departments_table)
+        # self.departments_table.setRowCount(len(self.all_departments.items()))
+        # for row_inx,(name,status) in enumerate(self.all_departments.items()):
+        #     name_item = QTableWidgetItem(name)
+        #     status_item = QTableWidgetItem(status)
+        #
+        #     self.departments_table.setItem(row_inx,0,name_item)
+        #     self.departments_table.setItem(row_inx,1,status_item)
+
+    def load_departments_inner(self):
+        self.all_departments = self.config_manager.get_departments()
+        print(self.all_departments)
+        self.departments_list = []
+        for key, value in self.all_departments.items():
+            self.departments_list.append({"Department": key, "Status": value})
+        return self.departments_list
 
 
     def add_departments(self):
@@ -1174,6 +1188,9 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(self, "Success", "Department closed!")
         else:
             QMessageBox.warning(self,"Error", "Please select a department!")
+
+
+
 
 
 
