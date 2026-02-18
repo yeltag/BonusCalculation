@@ -22,7 +22,7 @@ def exception_hook(exctype, value, traceback_obj):
     msg.setIcon(QMessageBox.Icon.Critical)
     msg.setText("An error occured while starting the application.")
     msg.setInformativeText(f"Error:{str(value)}")
-    msg.setWindowTitle("Application Error")
+    msg.setWindowTitle("A pplication Error")
     msg.exec()
 
     # Call the default exception hook

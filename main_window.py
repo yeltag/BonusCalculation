@@ -43,6 +43,7 @@ class MainWindow(QMainWindow):
         self.all_orders = []
         self.setup_ui()
         self.load_employees_from_db()
+        #self.new_page = NewPageTemplate('')
 
     def setup_ui(self):
         # Main window settings
@@ -1036,21 +1037,24 @@ class MainWindow(QMainWindow):
 
         self.departments_table = QTableWidget()
         self.departments_table.setColumnCount(2)
-        self.departments_table.setHorizontalHeaderLabels(["Department Name","Status"])
+        self.departments_table.setHorizontalHeaderLabels(["Department","Status"])
         header = self.departments_table.horizontalHeader()
         header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Department Name
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents) #Department status
 
         self.departments_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
 
-        central_widgets = []
+        central_widgets = [self.departments_table]
 
-        central_widgets.append(self.departments_table)
+
 
         search_widgets = []
         list_to_filter = self.load_departments_inner()
         search_fields = ["Department","Status"]
-        search_text_tool = NewPageTemplate.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
+        self.new_department_page = NewPageTemplate("Manage departments")
+
+        #self.new_department_page = NewPageTemplate("Manage departments",[],[],[])
+        search_text_tool = self.new_department_page.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
         search_widgets.extend(search_text_tool)
 
         # Department buttons
@@ -1069,7 +1073,7 @@ class MainWindow(QMainWindow):
         button_widgets.append(remove_dept_btn)
         button_widgets.append(edit_dept_btn)
 
-        self.new_department_page = NewPageTemplate("Manage departments",[],central_widgets,button_widgets)
+        self.new_department_page = NewPageTemplate("Manage departments",search_widgets,central_widgets,button_widgets)
 
         self.load_departments()
 
@@ -1190,7 +1194,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self,"Error", "Please select a department!")
 
 
-
+    def create_search_text_tool(self,list_to_filter,search_fields,filtered_table):
+        search_widgets_extention = []
+        search_widgets_extention.append(QLabel("Search:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText(f"Search by {', '.join(search_fields)}...")
+        self.search_input.textChanged.connect(NewDepartmentPage.filtering_tool(list_to_filter,filtered_table,self.search_input.text()))
+        self.search_input.setMinimumWidth(200)
+        search_widgets_extention.append(self.search_input)
+        return search_widgets_extention
 
 
 

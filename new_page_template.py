@@ -67,38 +67,69 @@ class NewPageTemplate(QWidget):
         self.layout.addStretch()
 
     def create_search_text_tool(self,list_to_filter,search_fields,filtered_table):
+
         search_widgets_extention = []
         search_widgets_extention.append(QLabel("Search:"))
+        #self.search_and_filters_layout.addWidget(QLabel("Search:"))
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(f"Search by {', '.join(search_fields)}...")
-        self.search_input.textChanged.connect(self.filtering_tool(list_to_filter,filtered_table,self.search_input.text()))
         self.search_input.setMinimumWidth(200)
+        print(type(list_to_filter))
+        print(filtered_table.horizontalHeaderItem(0).text())
+        self.search_input.setText(" ")
+        print(type(self.search_input.text()))
+
+        self.search_input.textChanged.connect(lambda text: self.filtering_tool(list_to_filter,filtered_table,text))
+
         search_widgets_extention.append(self.search_input)
+        #self.search_and_filters_layout.addWidget(self.search_input)
+        #self.layout.activate()
         return search_widgets_extention
 
     def filtering_tool(self,list_to_filter,filtered_table,search_input_text):
 
         if not list_to_filter:
-            header_text = filtered_table.horizontalHeaderItem(0).text().split()[0].lower()
-            filtered_table.setRowCount(1)
+            filtered_table.setRowCount(0)
+            if filtered_table.columnCount()>0:
+                header_item = filtered_table.horizontalHeaderItem(0)
+                header_text = header_item.text() if header_item else "items"
+                header_text = header_text.split()[0].lower() if header_text else "items"
 
+            else:
+                header_text = "items"
+
+            filtered_table.setRowCount(1)
             placeholder_item = QTableWidgetItem(f"No {header_text} found")
             placeholder_item.setTextAlighnment(Qt.AlignmentFlag.AlignCenter)
             filtered_table.setSpan(0,0,1,filtered_table.columnCount())
-            filtered_table.setItem(0,1,placeholder_item)
+            filtered_table.setItem(0,0,placeholder_item)
             return
 
-        search_text = search_input_text.lower()
-        filtered_elements = []
-        for index, element in enumerate(list_to_filter):
-            if search_text:
+        if filtered_table:
+
+            search_text = search_input_text.lower().strip()
+            filtered_elements = []
+
+            print("search text: ",search_text)
+            print("list to filter: ", list_to_filter)
+
+            for element in list_to_filter:
+                if not search_text:
+                    filtered_elements.append(element)
+                    continue
+
                 matches = False
-                for header in filtered_table.horizontalHeaderItems:
-                   matches == search_text.lower() in element[header.text()].lower()
+
+                for value in element.values():
+                    if search_text in value.lower():
+                        matches = True
+                        break
+
                 if matches:
                     filtered_elements.append(element)
 
-        self.display_elements(filtered_elements,filtered_table)
+            print("filtered elements: ",filtered_elements)
+            self.display_elements(filtered_elements,filtered_table)
 
     def display_elements(self,elements,filtered_table):
 
@@ -113,6 +144,9 @@ class NewPageTemplate(QWidget):
                 for i in range (dict_length):
                     element_item = QTableWidgetItem(element_list[i])
                     filtered_table.setItem(row_ind,i,element_item)
+        else:
+            filtered_table.setRowCount(0)
+
 
 
 
