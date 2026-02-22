@@ -1057,6 +1057,12 @@ class MainWindow(QMainWindow):
         search_text_tool = self.new_department_page.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
         search_widgets.extend(search_text_tool)
 
+        # combo_box
+        combo_list = ["active","closed","All departments"]
+        combo_box_label = "Select department status:"
+        combo_tool = self.new_department_page.combo_box_tool(combo_box_label,combo_list,self.departments_table,"Status",list_to_filter)
+        search_widgets.extend(combo_tool)
+
         # Department buttons
 
         add_dept_btn = QPushButton("Add Department")
@@ -1090,7 +1096,7 @@ class MainWindow(QMainWindow):
 
         self.load_departments_inner()
 
-        self.new_department_page.display_elements(self.departments_list,self.departments_table)
+        #self.new_department_page.display_elements(self.departments_list,self.departments_table)
         # self.departments_table.setRowCount(len(self.all_departments.items()))
         # for row_inx,(name,status) in enumerate(self.all_departments.items()):
         #     name_item = QTableWidgetItem(name)

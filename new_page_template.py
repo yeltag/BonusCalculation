@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QWidget,QVBoxLayout, QHBoxLayout,QLabel,QGroupBox,QLineEdit,QTableWidgetItem)
+from PyQt6.QtWidgets import (QWidget,QVBoxLayout, QHBoxLayout,QLabel,QGroupBox,QLineEdit,QTableWidgetItem,QComboBox)
 
 
 class NewPageTemplate(QWidget):
@@ -16,6 +16,7 @@ class NewPageTemplate(QWidget):
         self.central_widgets = central_widgets
         self.button_widgets = button_widgets
         self.create_layout()
+        self.filtered_elements = []
 
 
     def create_header_layout(self):
@@ -79,73 +80,113 @@ class NewPageTemplate(QWidget):
         self.search_input.setText(" ")
         print(type(self.search_input.text()))
 
-        self.search_input.textChanged.connect(lambda text: self.filtering_tool(list_to_filter,filtered_table,text))
+        self.search_input.textChanged.connect(lambda text: self.filtering_tool())
 
         search_widgets_extention.append(self.search_input)
         #self.search_and_filters_layout.addWidget(self.search_input)
         #self.layout.activate()
         return search_widgets_extention
 
-    def filtering_tool(self,list_to_filter,filtered_table,search_input_text):
+    def filtering_tool(self):
 
-        if not list_to_filter:
-            filtered_table.setRowCount(0)
-            if filtered_table.columnCount()>0:
-                header_item = filtered_table.horizontalHeaderItem(0)
+        if not self.list_to_filter:
+            self.filtered_table.setRowCount(0)
+            if self.filtered_table.columnCount()>0:
+                header_item = self.filtered_table.horizontalHeaderItem(0)
                 header_text = header_item.text() if header_item else "items"
                 header_text = header_text.split()[0].lower() if header_text else "items"
 
             else:
                 header_text = "items"
 
-            filtered_table.setRowCount(1)
+            self.filtered_table.setRowCount(1)
             placeholder_item = QTableWidgetItem(f"No {header_text} found")
             placeholder_item.setTextAlighnment(Qt.AlignmentFlag.AlignCenter)
-            filtered_table.setSpan(0,0,1,filtered_table.columnCount())
-            filtered_table.setItem(0,0,placeholder_item)
+            self.filtered_table.setSpan(0,0,1,self.filtered_table.columnCount())
+            self.filtered_table.setItem(0,0,placeholder_item)
             return
 
-        if filtered_table:
+        if self.filtered_table:
 
-            search_text = search_input_text.lower().strip()
-            filtered_elements = []
+            if hasattr(self, "search_input") and self.search_input:
 
-            print("search text: ",search_text)
-            print("list to filter: ", list_to_filter)
+                search_text = self.search_input.text().lower().strip()
+                #self.filtered_elements = []
 
-            for element in list_to_filter:
-                if not search_text:
-                    filtered_elements.append(element)
-                    continue
+                for element in self.list_to_filter:
+                    if not search_text:
+                        self.filtered_elements.append(element)
+                        continue
 
-                matches = False
+                    matches = False
 
-                for value in element.values():
-                    if search_text in value.lower():
-                        matches = True
-                        break
+                    for value in element.values():
+                        if search_text in value.lower():
+                            matches = True
+                            break
 
-                if matches:
-                    filtered_elements.append(element)
+                    if matches:
+                        self.filtered_elements.append(element)
 
-            print("filtered elements: ",filtered_elements)
-            self.display_elements(filtered_elements,filtered_table)
+            if hasattr(self, "combo_box") and self.combo_box and hasattr(self,"column_to_filter"):
+                print("Combo_box text: ",self.combo_box.currentText())
+
+
+
+
+
+                filtered_list = self.list_to_filter.copy()
+
+
+                self.filtered_elements = []
+
+                combo_box_text = self.combo_box.currentText()
+                if combo_box_text and combo_box_text !="All departments":
+
+                    for element in filtered_list:
+
+                        if element[self.column_to_filter] == combo_box_text:
+                            self.filtered_elements.append(element)
+
+
+                elif combo_box_text == "All departments":
+                    self.filtered_elements = filtered_list
+
+            print("filtered elements: ",self.filtered_elements)
+            self.display_elements(self.filtered_elements,self.filtered_table)
+
+    def combo_box_tool(self,combo_box_label,combo_list,filtered_table,column_to_filter,list_to_filter):
+        combo_box_label = QLabel(combo_box_label)
+        self.combo_box = QComboBox()
+        self.combo_box.addItems(combo_list)
+        self.column_to_filter = column_to_filter
+        self.filtered_table = filtered_table
+        self.list_to_filter = list_to_filter
+        self.filtering_tool()
+
+        self.combo_box.currentTextChanged.connect(lambda text: self.filtering_tool())
+        search_widgets_extention = [self.combo_box]
+
+        return search_widgets_extention
+
 
     def display_elements(self,elements,filtered_table):
-
         if filtered_table:
+            self.filtered_table = filtered_table
+
+        if self.filtered_table:
             print("filtered table = True")
         if elements:
-            filtered_table.setRowCount(len(elements))
+            self.filtered_table.setRowCount(len(elements))
             dict_length = elements[0].__len__()
             for row_ind, element in enumerate(elements):
                 element_list = list(element.values())
 
                 for i in range (dict_length):
                     element_item = QTableWidgetItem(element_list[i])
-                    filtered_table.setItem(row_ind,i,element_item)
+                    self.filtered_table.setItem(row_ind,i,element_item)
         else:
-            filtered_table.setRowCount(0)
+            self.filtered_table.setRowCount(0)
 
 
 
