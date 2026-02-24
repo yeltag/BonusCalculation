@@ -6,6 +6,11 @@ class NewPageTemplate(QWidget):
     def __init__(self,title,search_widgets = [],central_widgets = [],button_widgets = []):
         super(). __init__()
         self.title = title
+        self.filtered_table = None
+        self.list_to_filter = []
+        self.filtered_elements = []
+        self.combo_box = None
+        self.search_input = None
 
         self.layout = QVBoxLayout(self)
         self.header_layout = QHBoxLayout()
@@ -15,7 +20,7 @@ class NewPageTemplate(QWidget):
         self.search_widgets = search_widgets
         self.central_widgets = central_widgets
         self.button_widgets = button_widgets
-        self.create_layout()
+        #self.create_layout()
         self.filtered_elements = []
 
 
@@ -111,7 +116,7 @@ class NewPageTemplate(QWidget):
             if hasattr(self, "search_input") and self.search_input:
 
                 search_text = self.search_input.text().lower().strip()
-                #self.filtered_elements = []
+                self.filtered_elements = []
 
                 for element in self.list_to_filter:
                     if not search_text:
@@ -132,10 +137,10 @@ class NewPageTemplate(QWidget):
                 print("Combo_box text: ",self.combo_box.currentText())
 
 
-
-
-
-                filtered_list = self.list_to_filter.copy()
+                if len(self.filtered_elements) < len(self.list_to_filter):
+                    filtered_list = self.filtered_elements.copy()
+                else:
+                    filtered_list = self.list_to_filter.copy()
 
 
                 self.filtered_elements = []
@@ -151,21 +156,24 @@ class NewPageTemplate(QWidget):
 
                 elif combo_box_text == "All departments":
                     self.filtered_elements = filtered_list
+            else:
+                print("Combo_box text: ", self.combo_box.currentText())
 
             print("filtered elements: ",self.filtered_elements)
             self.display_elements(self.filtered_elements,self.filtered_table)
 
     def combo_box_tool(self,combo_box_label,combo_list,filtered_table,column_to_filter,list_to_filter):
-        combo_box_label = QLabel(combo_box_label)
+        combo_label = QLabel(combo_box_label)
         self.combo_box = QComboBox()
         self.combo_box.addItems(combo_list)
         self.column_to_filter = column_to_filter
         self.filtered_table = filtered_table
         self.list_to_filter = list_to_filter
-        self.filtering_tool()
+
 
         self.combo_box.currentTextChanged.connect(lambda text: self.filtering_tool())
-        search_widgets_extention = [self.combo_box]
+        self.filtering_tool()
+        search_widgets_extention = [combo_label,self.combo_box]
 
         return search_widgets_extention
 
@@ -187,6 +195,15 @@ class NewPageTemplate(QWidget):
                     self.filtered_table.setItem(row_ind,i,element_item)
         else:
             self.filtered_table.setRowCount(0)
+
+
+    def refresh_with_filters(self, new_data, filtered_table):
+        """Refrsh the display with new data while appliying current filters"""
+        self.list_to_filter = new_data
+        self.filtered_table = filtered_table
+
+        self.filtering_tool()
+
 
 
 

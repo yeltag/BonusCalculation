@@ -1043,6 +1043,7 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents) #Department status
 
         self.departments_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.departments_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
 
         central_widgets = [self.departments_table]
 
@@ -1055,13 +1056,14 @@ class MainWindow(QMainWindow):
 
         #self.new_department_page = NewPageTemplate("Manage departments",[],[],[])
         search_text_tool = self.new_department_page.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
-        search_widgets.extend(search_text_tool)
+
 
         # combo_box
-        combo_list = ["active","closed","All departments"]
+        combo_list = ["All departments","active","closed"]
         combo_box_label = "Select department status:"
         combo_tool = self.new_department_page.combo_box_tool(combo_box_label,combo_list,self.departments_table,"Status",list_to_filter)
-        search_widgets.extend(combo_tool)
+
+        search_widgets = search_text_tool + combo_tool
 
         # Department buttons
 
@@ -1079,7 +1081,12 @@ class MainWindow(QMainWindow):
         button_widgets.append(remove_dept_btn)
         button_widgets.append(edit_dept_btn)
 
-        self.new_department_page = NewPageTemplate("Manage departments",search_widgets,central_widgets,button_widgets)
+        self.new_department_page.search_widgets = search_widgets
+        self.new_department_page.central_widgets = central_widgets
+        self.new_department_page.button_widgets = button_widgets
+
+        self.new_department_page.create_layout()
+        #self.new_department_page = NewPageTemplate("Manage departments",search_widgets,central_widgets,button_widgets)
 
         self.load_departments()
 
@@ -1119,6 +1126,11 @@ class MainWindow(QMainWindow):
         if ok and department:
             if self.config_manager.add_department(department.strip()):
                 self.load_departments()
+                self.new_department_page.refresh_with_filters(self.departments_list, self.departments_table)
+
+
+
+
                 QMessageBox.information(self, "Success", "Department added successfully!")
 
             else:
@@ -1156,6 +1168,8 @@ class MainWindow(QMainWindow):
 
                     if self.config_manager.remove_department(department):
                         self.load_departments()
+                        self.new_department_page.list_to_filter = self.departments_list
+                        self.new_department_page.refresh_with_filters(self.departments_list, self.departments_table)
                         QMessageBox.information(self, "Success", "Department removed!")
 
         else:
@@ -1180,6 +1194,7 @@ class MainWindow(QMainWindow):
                                 emp["department"] = new_department
                                 self.database.save_employee(emp)
                         self.load_departments()
+                        self.new_department_page.display_elements(self.departments_list, self.departments_table)
                         QMessageBox.information(self, "Success", "Department name changed successfully!")
                     else:
                         QMessageBox.warning(self, "Error", "Department already exists!")
@@ -1195,6 +1210,7 @@ class MainWindow(QMainWindow):
                 department = current_item[0].text()
                 if self.config_manager.close_department(department):
                     self.load_departments()
+                    self.new_department_page.display_elements(self.departments_list, self.departments_table)
                     QMessageBox.information(self, "Success", "Department closed!")
         else:
             QMessageBox.warning(self,"Error", "Please select a department!")
