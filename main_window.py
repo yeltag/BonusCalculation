@@ -1031,19 +1031,25 @@ class MainWindow(QMainWindow):
         pass
 
     def create_department_page(self):
+        self.new_department_page = NewPageTemplate("Manage departments")
 
         # Central widgets
 
+        self.departments_table = self.new_department_page.create_qtablewidget_tool(2,["Department","Status"],self.edit_department,[self.add_departments,self.edit_department,self.remove_departments])
 
-        self.departments_table = QTableWidget()
-        self.departments_table.setColumnCount(2)
-        self.departments_table.setHorizontalHeaderLabels(["Department","Status"])
-        header = self.departments_table.horizontalHeader()
-        header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Department Name
-        header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents) #Department status
 
-        self.departments_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.departments_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        # self.departments_table = QTableWidget()
+        # self.departments_table.setColumnCount(2)
+        # self.departments_table.setHorizontalHeaderLabels(["Department","Status"])
+        # header = self.departments_table.horizontalHeader()
+        # header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Department Name
+        # header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents) #Department status
+        #
+        # self.departments_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        # self.departments_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        # self.departments_table.itemDoubleClicked.connect(self.edit_department)
+        # self.departments_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        # self.customContextMenuRequested.connect(self.show_context_menu)
 
         central_widgets = [self.departments_table]
 
@@ -1052,7 +1058,7 @@ class MainWindow(QMainWindow):
         search_widgets = []
         list_to_filter = self.load_departments_inner()
         search_fields = ["Department","Status"]
-        self.new_department_page = NewPageTemplate("Manage departments")
+        #self.new_department_page = NewPageTemplate("Manage departments")
 
         #self.new_department_page = NewPageTemplate("Manage departments",[],[],[])
         search_text_tool = self.new_department_page.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
@@ -1076,10 +1082,11 @@ class MainWindow(QMainWindow):
         edit_dept_btn = QPushButton("Edit Selected")
         edit_dept_btn.clicked.connect(self.edit_department)
 
-        button_widgets = []
-        button_widgets.append(add_dept_btn)
-        button_widgets.append(remove_dept_btn)
-        button_widgets.append(edit_dept_btn)
+        close_dpt_btn = QPushButton("Close Selected")
+        close_dpt_btn.clicked.connect(self.close_departments)
+
+        button_widgets = [add_dept_btn,remove_dept_btn,edit_dept_btn,close_dpt_btn]
+
 
         self.new_department_page.search_widgets = search_widgets
         self.new_department_page.central_widgets = central_widgets
@@ -1121,7 +1128,7 @@ class MainWindow(QMainWindow):
         return self.departments_list
 
 
-    def add_departments(self):
+    def add_departments(self,table = None):
         department, ok = QInputDialog.getText(self, "Add Department", "Department name:")
         if ok and department:
             if self.config_manager.add_department(department.strip()):
@@ -1136,7 +1143,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "Error", "Department already exists!")
 
-    def remove_departments(self):
+    def remove_departments(self,table = None):
         current_item = self.departments_table.selectedItems()
         print(current_item)
         if current_item:
@@ -1176,7 +1183,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", "Please select a department to remove!")
 
 
-    def edit_department(self):
+    def edit_department(self,table = None):
         current_item = self.departments_table.selectedItems()
 
 
@@ -1216,15 +1223,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self,"Error", "Please select a department!")
 
 
-    def create_search_text_tool(self,list_to_filter,search_fields,filtered_table):
-        search_widgets_extention = []
-        search_widgets_extention.append(QLabel("Search:"))
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText(f"Search by {', '.join(search_fields)}...")
-        self.search_input.textChanged.connect(NewDepartmentPage.filtering_tool(list_to_filter,filtered_table,self.search_input.text()))
-        self.search_input.setMinimumWidth(200)
-        search_widgets_extention.append(self.search_input)
-        return search_widgets_extention
 
 
 

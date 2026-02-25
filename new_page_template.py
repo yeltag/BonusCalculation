@@ -1,5 +1,6 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QWidget,QVBoxLayout, QHBoxLayout,QLabel,QGroupBox,QLineEdit,QTableWidgetItem,QComboBox)
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QLineEdit, QTableWidgetItem,
+                             QComboBox, QTableWidget, QHeaderView,QAbstractScrollArea,QMenu)
 
 
 class NewPageTemplate(QWidget):
@@ -22,6 +23,7 @@ class NewPageTemplate(QWidget):
         self.button_widgets = button_widgets
         #self.create_layout()
         self.filtered_elements = []
+        self.context_actions = []
 
 
     def create_header_layout(self):
@@ -204,6 +206,55 @@ class NewPageTemplate(QWidget):
 
         self.filtering_tool()
 
+    def create_qtablewidget_tool(self,column_count,header_labels,double_clicked_method,context_actions = []):
+        self.context_actions = context_actions
+        new_table = QTableWidget()
+        new_table.setColumnCount(column_count)
+        new_table.setHorizontalHeaderLabels(header_labels)
+        header = new_table.horizontalHeader()
+        header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents)
+        new_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        new_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        new_table.itemDoubleClicked.connect(double_clicked_method)
+        new_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        new_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        new_table.customContextMenuRequested.connect(self.show_context_menu)
+
+        return new_table
+
+    def show_context_menu(self,position):
+        menu = QMenu()
+
+        copy_action = menu.addAction("Copy")
+        edit_action = menu.addAction("Edit")
+        remove_action = menu.addAction("Remove")
+
+        table = self.sender()
+
+        if table:
+
+            action = menu.exec(table.viewport().mapToGlobal(position))
+
+            if action == copy_action:
+                self.copy_selected_item(table)
+            elif action == edit_action:
+                self.edit_selected_item(table)
+            elif action == remove_action:
+                self.remove_selected_item(table)
+
+    def copy_selected_item(self,table):
+
+        if len(self.context_actions) >= 1 and self.context_actions[0]:
+            self.context_actions[0](table)
+
+    def edit_selected_item(self,table):
+        if len(self.context_actions) >=2 and self.context_actions[1]:
+            self.context_actions[1](table)
+
+    def remove_selected_item(self,table):
+        if len(self.context_actions) >= 3 and self.context_actions[2]:
+            self.context_actions[2](table)
 
 
 
