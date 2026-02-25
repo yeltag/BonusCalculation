@@ -22,8 +22,8 @@ class NewPageTemplate(QWidget):
         self.central_widgets = central_widgets
         self.button_widgets = button_widgets
         #self.create_layout()
-        self.filtered_elements = []
-        self.context_actions = []
+        #self.header_labels = []
+        #self.context_actions = []
 
 
     def create_header_layout(self):
@@ -75,20 +75,21 @@ class NewPageTemplate(QWidget):
         self.layout.addStretch()
 
     def create_search_text_tool(self,list_to_filter,search_fields,filtered_table):
-
+        self.list_to_filter = list_to_filter
+        self.filtered_table = filtered_table
         search_widgets_extention = []
         search_widgets_extention.append(QLabel("Search:"))
         #self.search_and_filters_layout.addWidget(QLabel("Search:"))
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(f"Search by {', '.join(search_fields)}...")
         self.search_input.setMinimumWidth(200)
-        print(type(list_to_filter))
-        print(filtered_table.horizontalHeaderItem(0).text())
+        print(type(self.list_to_filter))
+        print(self.filtered_table.horizontalHeaderItem(0).text())
         self.search_input.setText(" ")
         print(type(self.search_input.text()))
 
         self.search_input.textChanged.connect(lambda text: self.filtering_tool())
-
+        self.filtering_tool()
         search_widgets_extention.append(self.search_input)
         #self.search_and_filters_layout.addWidget(self.search_input)
         #self.layout.activate()
@@ -108,7 +109,7 @@ class NewPageTemplate(QWidget):
 
             self.filtered_table.setRowCount(1)
             placeholder_item = QTableWidgetItem(f"No {header_text} found")
-            placeholder_item.setTextAlighnment(Qt.AlignmentFlag.AlignCenter)
+            placeholder_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.filtered_table.setSpan(0,0,1,self.filtered_table.columnCount())
             self.filtered_table.setItem(0,0,placeholder_item)
             return
@@ -128,7 +129,7 @@ class NewPageTemplate(QWidget):
                     matches = False
 
                     for value in element.values():
-                        if search_text in value.lower():
+                        if str(search_text) in str(value).lower():
                             matches = True
                             break
 
@@ -159,7 +160,7 @@ class NewPageTemplate(QWidget):
                 elif combo_box_text == "All departments":
                     self.filtered_elements = filtered_list
             else:
-                print("Combo_box text: ", self.combo_box.currentText())
+                print("There is no Combo_box")
 
             print("filtered elements: ",self.filtered_elements)
             self.display_elements(self.filtered_elements,self.filtered_table)
@@ -192,8 +193,8 @@ class NewPageTemplate(QWidget):
             for row_ind, element in enumerate(elements):
                 element_list = list(element.values())
 
-                for i in range (dict_length):
-                    element_item = QTableWidgetItem(element_list[i])
+                for i in range(self.filtered_table.columnCount()):
+                    element_item = QTableWidgetItem(element[self.filtered_table.horizontalHeaderItem(i).text()])
                     self.filtered_table.setItem(row_ind,i,element_item)
         else:
             self.filtered_table.setRowCount(0)
@@ -208,9 +209,10 @@ class NewPageTemplate(QWidget):
 
     def create_qtablewidget_tool(self,column_count,header_labels,double_clicked_method,context_actions = []):
         self.context_actions = context_actions
+        self.header_labels = header_labels
         new_table = QTableWidget()
         new_table.setColumnCount(column_count)
-        new_table.setHorizontalHeaderLabels(header_labels)
+        new_table.setHorizontalHeaderLabels(self.header_labels)
         header = new_table.horizontalHeader()
         header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents)
@@ -243,7 +245,7 @@ class NewPageTemplate(QWidget):
             elif action == remove_action:
                 self.remove_selected_item(table)
 
-    def copy_selected_item(self,table):
+    def copy_selected_item(self,table,context_actions):
 
         if len(self.context_actions) >= 1 and self.context_actions[0]:
             self.context_actions[0](table)

@@ -146,7 +146,7 @@ class MainWindow(QMainWindow):
         self.bonus_calculation_page = self.create_bonus_calculation_page()
         self.orders_page = self.create_orders_page()
         self.department_page=self.create_department_page()
-        #self.kpi_page = self.create_kpi_page()
+        self.kpi_page = self.create_kpi_page()
         #self.manage_variable_page=self.create_variable_page()
 
 
@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.bonus_calculation_page)
         self.stacked_widget.addWidget(self.orders_page)
         self.stacked_widget.addWidget(self.department_page)
-        #self.stacked_widget.addWidget(self.kpi_page)
+        self.stacked_widget.addWidget(self.kpi_page)
         #self.stacked_widget.addWidget(self.manage_variable_page)
 
 
@@ -1025,7 +1025,8 @@ class MainWindow(QMainWindow):
 
 
     def open_kpis(self):
-        pass
+        self.stacked_widget.setCurrentIndex(6)
+        self.statusBar().showMessage("Manage KPIs")
 
     def open_variables(self):
         pass
@@ -1038,29 +1039,12 @@ class MainWindow(QMainWindow):
         self.departments_table = self.new_department_page.create_qtablewidget_tool(2,["Department","Status"],self.edit_department,[self.add_departments,self.edit_department,self.remove_departments])
 
 
-        # self.departments_table = QTableWidget()
-        # self.departments_table.setColumnCount(2)
-        # self.departments_table.setHorizontalHeaderLabels(["Department","Status"])
-        # header = self.departments_table.horizontalHeader()
-        # header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents) #Department Name
-        # header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents) #Department status
-        #
-        # self.departments_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        # self.departments_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
-        # self.departments_table.itemDoubleClicked.connect(self.edit_department)
-        # self.departments_table.setContextMenuPolicy(Qt.CustomContextMenu)
-        # self.customContextMenuRequested.connect(self.show_context_menu)
-
         central_widgets = [self.departments_table]
-
-
 
         search_widgets = []
         list_to_filter = self.load_departments_inner()
         search_fields = ["Department","Status"]
-        #self.new_department_page = NewPageTemplate("Manage departments")
 
-        #self.new_department_page = NewPageTemplate("Manage departments",[],[],[])
         search_text_tool = self.new_department_page.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
 
 
@@ -1100,7 +1084,42 @@ class MainWindow(QMainWindow):
         return self.new_department_page
 
     def create_kpi_page(self):
-        pass
+        self.new_kpi_page = NewPageTemplate("Manage KPIs")
+        self.kpi_table = self.new_department_page.create_qtablewidget_tool(2, ["name", "formula"],
+                                                                                   self.edit_kpi,
+                                                                                   [self.add_kpi,
+                                                                                    self.edit_kpi,
+                                                                                    self.remove_kpi])
+
+        central_widgets = [self.kpi_table]
+
+
+        list_to_filter = self.config_manager.get_kpis()
+        search_fields = ["Name","Formula"]
+
+        search_kpi_tool = self.new_kpi_page.create_search_text_tool(list_to_filter,search_fields,self.kpi_table)
+        search_widgets = search_kpi_tool
+
+        # Buttons
+
+        add_kpi_btn = QPushButton("Add KPI")
+
+        remove_kpi_btn = QPushButton("Remove Selected")
+
+        edit_kpi_btn = QPushButton("Edit Selected")
+
+        button_widgets = [add_kpi_btn,remove_kpi_btn,edit_kpi_btn]
+
+        self.new_kpi_page.search_widgets = search_widgets
+        self.new_kpi_page.central_widgets = central_widgets
+        self.new_kpi_page.button_widgets = button_widgets
+
+        self.new_kpi_page.create_layout()
+
+        return self.new_kpi_page
+
+
+
 
     def create_variable_page(self):
         pass
@@ -1109,15 +1128,6 @@ class MainWindow(QMainWindow):
         #self.departments_table.clearContents()
 
         self.load_departments_inner()
-
-        #self.new_department_page.display_elements(self.departments_list,self.departments_table)
-        # self.departments_table.setRowCount(len(self.all_departments.items()))
-        # for row_inx,(name,status) in enumerate(self.all_departments.items()):
-        #     name_item = QTableWidgetItem(name)
-        #     status_item = QTableWidgetItem(status)
-        #
-        #     self.departments_table.setItem(row_inx,0,name_item)
-        #     self.departments_table.setItem(row_inx,1,status_item)
 
     def load_departments_inner(self):
         self.all_departments = self.config_manager.get_departments()
@@ -1221,6 +1231,16 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(self, "Success", "Department closed!")
         else:
             QMessageBox.warning(self,"Error", "Please select a department!")
+
+
+    def edit_kpi(self,table):
+        pass
+
+    def add_kpi(self,table):
+        pass
+
+    def remove_kpi(self,table):
+        pass
 
 
 
