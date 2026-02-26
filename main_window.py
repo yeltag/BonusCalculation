@@ -25,6 +25,7 @@ from salary_adjustment_dialog_test import TestSalaryAdjustmentDialog
 from variable_entry_widget import VariableEntryWidget
 from order_dialog import OrderDialog
 from new_page_template import NewPageTemplate
+from kpi_editor_dialog import KPIEditorDialog
 
 
 class EmployeeTableWidget(QTableWidget):
@@ -1091,6 +1092,7 @@ class MainWindow(QMainWindow):
                                                                                     self.edit_kpi,
                                                                                     self.remove_kpi])
 
+
         central_widgets = [self.kpi_table]
 
 
@@ -1103,6 +1105,7 @@ class MainWindow(QMainWindow):
         # Buttons
 
         add_kpi_btn = QPushButton("Add KPI")
+        add_kpi_btn.clicked.connect(self.add_kpi)
 
         remove_kpi_btn = QPushButton("Remove Selected")
 
@@ -1237,7 +1240,20 @@ class MainWindow(QMainWindow):
         pass
 
     def add_kpi(self,table):
-        pass
+        """Open KPI editor to add new KPI"""
+        print(f"DEBUG ConfigDialog: self.database = {self.database}")
+
+        dialog = KPIEditorDialog(self, None, self.config_manager, database=self.database)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_kpi = dialog.get_kpi_data()
+
+            # Add to configuration
+            if self.config_manager.add_kpi(new_kpi):
+                self.load_kpis()
+                QMessageBox.information(self, "Success", "KPI added successfully!")
+            else:
+                QMessageBox.warning(self, "Error", "Failed to add KPI")
 
     def remove_kpi(self,table):
         pass

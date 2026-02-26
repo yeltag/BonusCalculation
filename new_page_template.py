@@ -21,9 +21,7 @@ class NewPageTemplate(QWidget):
         self.search_widgets = search_widgets
         self.central_widgets = central_widgets
         self.button_widgets = button_widgets
-        #self.create_layout()
-        #self.header_labels = []
-        #self.context_actions = []
+
 
 
     def create_header_layout(self):
