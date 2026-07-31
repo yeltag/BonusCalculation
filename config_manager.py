@@ -32,7 +32,7 @@ class ConfigManager:
                     db_kpis = self.database.get_all_kpis()
                     if db_kpis:
                         merged_config["kpis"] = db_kpis
-                        print("INFO: Loaded KPIs from database")
+
                     elif "kpis" not in user_config or not user_config["kpis"]:
                         merged_config["kpis"] = default_config["kpis"]
                 else:
@@ -43,11 +43,11 @@ class ConfigManager:
             else:
                 # Create config file with defaults
                 self.save_config(default_config)
-                print("INFO: Created new config file")
+
                 return default_config
 
         except Exception as e:
-            print(f"Error loading config config_manager load_config:{e}")
+
             return default_config
 
 
@@ -62,7 +62,7 @@ class ConfigManager:
             return True
 
         except Exception as e:
-            print(f"Error saving config save_config line 73: {e}")
+
             return False
 
 
@@ -127,22 +127,22 @@ class ConfigManager:
         return self.config.get("kpis",[])
 
 
-    def add_kpi(self, kpi_data):
+    def add_kpi(self):
         """Add KPI to both database and config"""
         # Add to database if available
-        if self.database:
-            try:
-                self.database.save_kpi(kpi_data)
-                print("INFO: KPI saved to database")
-            except Exception as e:
-                print(f"Error saving KPI to database add_kpi line 122:{e}")
-                return False
+        #if self.database:
+         #   try:
+          #      self.database.save_kpi(kpi_data)
+          #      print("INFO: KPI saved to database")
+          #  except Exception as e:
+          #      print(f"Error saving KPI to database add_kpi line 122:{e}")
+          #      return False
 
         # Also update config file
         kpis = self.get_kpis()
-        kpis.append(kpi_data)
+        #kpis.append(kpi_data)
         self.config["kpis"] = kpis
-        return self.save_config()
+        return self.save_config(self.config)
 
     def update_kpi(self, index, kpi_data):
         """Update KPI in both database and config"""
@@ -160,26 +160,26 @@ class ConfigManager:
                     # PRESERVE THE ORIGINAL ID FOR DATABASE UPDATE
                     if "id" in original_kpi:
                         kpi_data["id"] = original_kpi["id"]
-                        print(f"Preserved ID for database update: {kpi_data['id']}")
+
 
                     # Save to database - this should update existing record due to ID
                     success = self.database.save_kpi(kpi_data)
-                    print(f"Database save result: {success}")
+
 
                     if success:
-                        print("KPI updated in database")
+
                         # Refresh KPIs from database to get the updated data
                         db_kpis = self.database.get_all_kpis()
                         if db_kpis:
                             self.config["kpis"] = db_kpis
                             if self.save_config():
-                                print("Config updated with database KPIs")
+
                                 return True
                             else:
-                                print("Failed to save config after database update")
+
                                 return False
                     else:
-                        print("Database save failed")
+
                         return False
 
                 except Exception as e:
@@ -191,8 +191,8 @@ class ConfigManager:
             kpis[index] = kpi_data
             self.config["kpis"] = kpis
             result = self.save_config()
-            print(f"Config save result: {result}")
+
             return result
 
-        print(f"Invalid index: {index}")
+
         return False

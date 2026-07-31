@@ -1,6 +1,11 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QLineEdit, QTableWidgetItem,
-                             QComboBox, QTableWidget, QHeaderView,QAbstractScrollArea,QMenu)
+                             QComboBox, QTableWidget, QHeaderView, QAbstractScrollArea, QMenu, QTreeWidget,
+                             QTreeWidgetItem, QCheckBox, QDateEdit, QSizePolicy, QMessageBox)
+
+
+from datetime import datetime, date
+import calendar
 
 
 class NewPageTemplate(QWidget):
@@ -46,7 +51,16 @@ class NewPageTemplate(QWidget):
             for widg in self.central_widgets:
                 self.central_layout.addWidget(widg)
 
-        self.central_layout.addStretch()
+                if isinstance(widg, (QTreeWidget, QTableWidget)):
+                    widg.setSizePolicy(
+                        QSizePolicy.Policy.Expanding,
+                        QSizePolicy.Policy.Expanding
+                    )
+                    widg.setMinimumHeight(600)
+                    widg.setMaximumHeight(700)
+                    widg.setMaximumWidth(1000)
+
+
 
         return self.central_layout
 
@@ -66,11 +80,8 @@ class NewPageTemplate(QWidget):
         self.create_buttons_layout()
         self.layout.addLayout(self.header_layout)
         self.layout.addWidget(self.filter_group)
-        self.layout.addLayout(self.central_layout)
+        self.layout.addLayout(self.central_layout,stretch = 1)
         self.layout.addLayout(self.button_layout)
-
-
-        self.layout.addStretch()
 
     def create_search_text_tool(self,list_to_filter,search_fields,filtered_table):
         self.list_to_filter = list_to_filter
@@ -81,10 +92,9 @@ class NewPageTemplate(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(f"Search by {', '.join(search_fields)}...")
         self.search_input.setMinimumWidth(200)
-        print(type(self.list_to_filter))
-        print(self.filtered_table.horizontalHeaderItem(0).text())
+
         self.search_input.setText(" ")
-        print(type(self.search_input.text()))
+
 
         self.search_input.textChanged.connect(lambda text: self.filtering_tool())
         self.filtering_tool()
@@ -180,6 +190,10 @@ class NewPageTemplate(QWidget):
 
 
     def display_elements(self,elements,filtered_table):
+        """Displays elements of qtable widget
+        elements - list of dictionaries where keys - names of tables columns and values - values for table rows
+        filtered_table - table to be populated"""
+
         if filtered_table:
             self.filtered_table = filtered_table
 
@@ -192,14 +206,18 @@ class NewPageTemplate(QWidget):
                 element_list = list(element.values())
 
                 for i in range(self.filtered_table.columnCount()):
-                    element_item = QTableWidgetItem(element[self.filtered_table.horizontalHeaderItem(i).text()])
+                    print(element[self.filtered_table.horizontalHeaderItem(i).text().lower()])
+                    element_item = QTableWidgetItem(str(element[self.filtered_table.horizontalHeaderItem(i).text().lower()]))
+
+                    if "id" in element.keys():
+                        element_item.setData(Qt.ItemDataRole.UserRole,element["id"])
                     self.filtered_table.setItem(row_ind,i,element_item)
         else:
             self.filtered_table.setRowCount(0)
 
 
     def refresh_with_filters(self, new_data, filtered_table):
-        """Refrsh the display with new data while appliying current filters"""
+        """Refresh the display with new data while appliying current filters"""
         self.list_to_filter = new_data
         self.filtered_table = filtered_table
 
@@ -216,10 +234,11 @@ class NewPageTemplate(QWidget):
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents)
         new_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         new_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
-        new_table.itemDoubleClicked.connect(double_clicked_method)
-        new_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        new_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        new_table.customContextMenuRequested.connect(self.show_context_menu)
+        if double_clicked_method:
+            new_table.itemDoubleClicked.connect(double_clicked_method)
+            new_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            new_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            new_table.customContextMenuRequested.connect(self.show_context_menu)
 
         return new_table
 
@@ -255,6 +274,739 @@ class NewPageTemplate(QWidget):
     def remove_selected_item(self,table):
         if len(self.context_actions) >= 3 and self.context_actions[2]:
             self.context_actions[2](table)
+
+
+    def create_qtreewidget_tool(self,column_count,header_labels,list_for_tree, fields_for_tree,add_widgets=[]):
+        #self.list_for_tree = list_for_tree
+        #self.fields_for_tree = fields_for_tree
+        header_labels = ["/".join(fields_for_tree)]+header_labels
+
+        self.tree = QTreeWidget()
+        self.tree.setColumnCount(column_count)
+        self.tree.setHeaderLabels(header_labels)
+
+        self.tree._updating_flags = False
+
+        self.tree.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
+        self.tree.setMinimumHeight(200)
+        self.tree.setMaximumHeight(500)
+
+        self.tree.list_for_tree = list_for_tree
+        self.tree.fields_for_tree = fields_for_tree
+        self.tree.column_widgets = add_widgets
+
+
+        #self.tree.count_dict = 1
+        self.tree.count_dict = 0
+        #self.populate_tree(self.tree,self.create_dict_for_tree())
+
+        self.populate_tree_new(self.tree, self.create_dict_for_tree_new())
+
+        return self.tree
+
+    def populate_tree_new(self,tree_widget,data,parent = None, current_level = 0):
+
+        # if type(data) is list:
+        #     for element in data:
+        #         item = QTreeWidgetItem(parent)
+        #         item.setText(0,element["field"])
+        #         user_role_data = [element["id"],element["field"]]
+        #         item.setData(0,Qt.ItemDataRole.UserRole,user_role_data)
+        #         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        #         item.setCheckState(0, Qt.CheckState.Unchecked)
+        # else:
+
+        def populate_tree_inner(tree_widget,data,parent = None):
+            for i in data:
+                for key,value in i.items():
+                    if parent == None:
+                        item = QTreeWidgetItem(tree_widget)
+                    else:
+                        item = QTreeWidgetItem (parent)
+
+                    item.setText(0, value[0]["field"])
+                    user_role_data = [key, value[0]["field"]]
+                    item.setData(0,Qt.ItemDataRole.UserRole,user_role_data)
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsAutoTristate)
+                    item.setCheckState(0, Qt.CheckState.Unchecked)
+                    item.setExpanded(True)
+                    if  value[1] != []:
+
+                        populate_tree_inner(tree_widget,value[1],item)
+
+
+        populate_tree_inner(tree_widget,data)
+        header = self.tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setStretchLastSection(False)
+        self.tree.resizeColumnToContents(2)
+
+    def populate_tree(self,tree_widget,data, parent = None):
+
+
+
+        for value in list(data.values())[self.tree.count_dict-1]:
+            self.tree.count_dict -= 1
+
+            if parent is None:
+                item = QTreeWidgetItem(tree_widget)
+                if self.tree.fields_for_tree[self.tree.count_dict] != 'employee':
+                    item.setText(0, str(value[self.tree.fields_for_tree[self.tree.count_dict].lower()]))
+                    if "id" in value.keys():
+                        item.setData(0,Qt.ItemDataRole.UserRole,value["id"])
+                else:
+
+                    item.setText(0, f'{value["last_name"]} {value["first_name"]} {value["father_name"]}')
+                    user_role_data = {"id":value["id"],"first_name":value["first_name"],"last_name":value["last_name"]}
+                    item.setData(0,Qt.ItemDataRole.UserRole,user_role_data)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsAutoTristate)
+                item.setCheckState(0, Qt.CheckState.Unchecked)
+            else:
+                #item = QTreeWidgetItem(parent)
+
+                #print(value[self.tree.fields_for_tree[self.tree.count_dict-1]])
+                #if value[self.tree.fields_for_tree[self.tree.count_dict-1]] == parent:
+                if value[0] == parent.text(0):
+
+                    for element in value[1]:
+
+                        item = QTreeWidgetItem(parent)
+                        if self.tree.fields_for_tree[self.tree.count_dict] != 'employee':
+                            item.setText(0,str(value[self.tree.fields_for_tree[self.tree.count_dict].lower()]))
+                        else:
+                            print("Value = ",value)
+                            item.setText(0,f'{element["last_name"]} {element["first_name"]} {element["father_name"]}')
+                            user_role_data = {"id":element["id"],"first_name":element["first_name"],"last_name":element["last_name"],"father_name":element["father_name"]}
+                            item.setData(0, Qt.ItemDataRole.UserRole, user_role_data)
+                        item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable|Qt.ItemFlag.ItemIsAutoTristate)
+                        item.setCheckState(0,Qt.CheckState.Unchecked)
+
+            self.tree.count_dict +=1
+
+            if self.tree.count_dict < self.tree.lenth - 1:
+            #if self.tree.count_dict < self.tree.lenth-1:
+                self.tree.count_dict +=1
+                self.populate_tree(tree_widget,data,item)
+            else:
+                print(list(data.values())[self.tree.count_dict])
+                for value in list(data.values())[self.tree.count_dict]:
+                    if value[0] == item.text(0):
+                        for element in value[1]:
+                            print("value =",value)
+                            print("element =",element)
+
+                            child = QTreeWidgetItem(item)
+                            if self.tree.fields_for_tree[self.tree.count_dict] != 'employee':
+                                child.setText(0, str(element[self.tree.fields_for_tree[self.tree.count_dict].lower()]))
+                            else:
+                                child.setText(0, f'{element["last_name"]} {element["first_name"]} {element["father_name"]}')
+                                user_role_data = {"id":element["id"],"last_name":element["last_name"],"first_name":element["first_name"],"father_name":element["father_name"]}
+                                child.setData(0,Qt.ItemDataRole.UserRole,user_role_data)
+                            child.setFlags(child.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsAutoTristate)
+                            child.setCheckState(0, Qt.CheckState.Unchecked)
+
+        header = self.tree.header()
+        header.setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents)
+        header.setStretchLastSection(False)
+        self.tree.resizeColumnToContents(2)
+
+
+
+            #self.tree.itemChanged.connect(self.on_item_changed)
+
+        #self.tree.expandAll()
+
+    def on_date_check_changed(self,tree,state,item_one,column):
+        print(f"DEBUG on_date_check_changed: state={state}, item={item_one.text(0)}")
+        if state == 2:
+            # Store the "apply to all" state IMMEDIATELY, before any other operations
+            #item_one.setData(0, Qt.ItemDataRole.UserRole + 1, True)
+            #print(f"DEBUG: Set apply_to_all=True for {item_one.text(0)}")
+            #print(f"DEBUG: Verify data stored: {item_one.data(0, Qt.ItemDataRole.UserRole + 1)}")  # Verify immediately
+
+            if item_one.checkState(0) == Qt.CheckState.Unchecked:
+                item_one.setCheckState(0,Qt.CheckState.Checked)
+                item_one.setExpanded(True)
+
+            item_one_date_widget = self.tree.itemWidget(item_one,column-1)
+            if item_one_date_widget:
+                item_one_date = item_one_date_widget.date()
+
+            for i in range(item_one.childCount()):
+                child = item_one.child(i)
+                child_date_widget = self.tree.itemWidget(child,column-1)
+                if child_date_widget:
+                    child_date_widget.setDate(item_one_date)
+                    child_date_widget.setReadOnly(True)
+                    child_date_widget.setStyleSheet("""
+                    QDateEdit {
+                    color: #707070;
+                    }
+                    QDateEdit QAbstractItemView {
+                    color: #707070;  /* Color for dates in the calendar popup */
+                    background-color: #FFFFFF;
+                    }
+                    """)
+
+
+                    child_flags = child.flags()
+                    child.setFlags(child_flags & ~Qt.ItemFlag.ItemIsUserCheckable)
+                    #child.setDisabled(True)
+            current_flags = item_one.flags()
+            item_one.setFlags(current_flags & ~Qt.ItemFlag.ItemIsUserCheckable)
+            #item_one.setDisabled(True)
+
+            # Store apply_to_al  as an attribute of the tree widget
+            if not hasattr(self.tree, 'apply_to_all_dict'):
+                self.tree.apply_to_all_dict = {}
+            self.tree.apply_to_all_dict[id(item_one)] = True
+
+
+
+        else:
+
+            #item_one.setData(0, Qt.ItemDataRole.UserRole + 1, False)
+            #print(f"DEBUG: Set apply_to_all=False for {item_one.text(0)}")
+
+            for i in range(item_one.childCount()):
+                child = item_one.child(i)
+                child_date_widget = self.tree.itemWidget(child,column-1)
+                if child_date_widget:
+
+                    child_date_widget.setReadOnly(False)
+                    child_date_widget.setStyleSheet("""
+                            QDateEdit {
+                            color: #222222;
+                        }
+                        QDateEdit QAbstractItemView {
+                            color: #222222;  /* Color for dates in the calendar popup */
+                            background-color: #FFFFFF;
+                        }
+                        """)
+                    child_flags = child.flags()
+                    child.setFlags(child_flags | Qt.ItemFlag.ItemIsUserCheckable)
+                #child.setDisabled(False)
+
+            current_flags = item_one.flags()
+            item_one.setFlags(current_flags | Qt.ItemFlag.ItemIsUserCheckable)
+            #item_one.setDisabled(False)
+
+            # Store apply_to_all as False
+            if not hasattr(self.tree, 'apply_to_all_dict'):
+                self.tree.apply_to_all_dict = {}
+            self.tree.apply_to_all_dict[id(item_one)] = False
+
+
+    def on_date_changed(self, item, tree,column):
+        """Removes 'Apply to all' checkbox if the item date is changed """
+
+
+        checkbox = tree.itemWidget(item,column+1)
+
+        if checkbox:
+            checkbox.setCheckState(Qt.CheckState.Unchecked)
+
+    def create_dict_for_tree_new(self):
+
+        self.tree.lenth = len(self.tree.list_for_tree)
+        dict_for_tree = {}
+
+        if self.tree.lenth > 1:
+            minus_step = -1
+            second_dict = []
+            for step in range(self.tree.lenth - 1):
+
+                interim_dict = []
+                if minus_step == -1:
+                    for i in self.tree.list_for_tree[-1]:
+                        second_dict_key = i["id"]
+                        second_dict.append ({second_dict_key: [i,[]]})
+
+
+                for element in self.tree.list_for_tree[minus_step-1]:
+
+                    interim_list = []
+                    element_dict = {}
+                    for j in second_dict:
+
+                        for key, value in j.items():
+                            if element["id"].lower() == value[0][self.tree.fields_for_tree[minus_step-1]].lower():
+
+                                interim_list.append(j)
+                    for key in element.keys():
+                        if key != "id":
+                            element_dict[key] = element[key]
+                    interim_dict.append({element["id"]:[element_dict,interim_list]})
+                minus_step -=1
+                second_dict = interim_dict.copy()
+
+        else:
+            interim_dict = {}
+            for element in self.tree.list_for_tree[-1]:
+                element_dict = {}
+                for key in element.keys():
+                    if key != "id":
+                        element_dict[key] = element[key]
+            interim_dict[element["id"]] = [element_dict]
+        dict_for_tree = interim_dict
+
+
+
+
+
+        return dict_for_tree
+
+
+
+    def create_dict_for_tree(self):
+
+        self.tree.lenth = len(self.tree.list_for_tree)
+        dict_for_tree = {}
+        dict_for_tree_plus = {}
+
+        first_list = []
+        for element in self.tree.list_for_tree[0]:
+            first_list.append(element)
+
+        dict_for_tree_plus[0] = first_list
+
+        if self.tree.lenth > 1:
+
+            for j in self.tree.list_for_tree[-2]:
+
+                dict_for_tree[j[self.tree.fields_for_tree[-2]]] = []
+                for i in self.tree.list_for_tree[-1]:
+
+                    if i[self.tree.fields_for_tree[-2]].lower() == j[self.tree.fields_for_tree[-2]].lower():
+                        dict_for_tree[j[self.tree.fields_for_tree[-2]]].append(i)
+
+
+        print(dict_for_tree)
+        #new_list_for_tree = list(dict_for_tree.items())
+        #print(new_list_for_tree)
+        dict_for_tree_plus[self.tree.lenth-1]=list(dict_for_tree.items())
+        print(dict_for_tree_plus)
+
+        if self.tree.lenth < 3:
+            return dict_for_tree_plus
+        else:
+            repeat = -3
+            for step in range(self.tree.lenth-2):
+                for j in self.tree.list_for_tree[repeat]:
+                    dict_for_tree[j[self.tree.fields_for_tree[repeat]]] = []
+                    for i in self.tree.list_for_tree[repeat+1]:
+                        if i[self.tree.fields_for_tree[repeat]] == j[self.tree.fields_for_tree[repeat]]:
+                            key = i[self.tree.fields_for_tree[repeat+1]]
+                            value = dict_for_tree[key]
+                            dict_for_tree[j[self.tree.fields_for_tree[repeat]]].append(i)
+                            #dict_for_tree[j[self.tree.fields_for_tree[repeat]]].append({key:value})
+                            dict_for_tree.pop(key)
+                        dict_for_tree_plus[repeat+self.tree.lenth+1] = list(dict_for_tree.items())
+                repeat -=1
+
+        print(dict_for_tree_plus.items())
+        # for key, value in dict_for_tree_plus.items():
+        #     print(key,value)
+        #     if key < self.tree.lenth - 1:
+        #         new_value = []
+        #         for element in value:
+        #             values_list = []
+        #             for dict_elem in element[1]:
+        #                 values_list.append(list(dict_elem.keys())[0])
+        #             element = element(element[0],values_list)
+        #             new_value.append(element)
+        #         dict_for_tree_plus[key] = new_value
+
+        # first_list = []
+        # for element in self.tree.list_for_tree[0]:
+        #     first_list.append(element)
+        #
+        # dict_for_tree_plus[0]=first_list
+
+
+        dict_for_tree_plus = dict(sorted(dict_for_tree_plus.items()))
+
+        print(dict_for_tree)
+        print(dict_for_tree_plus)
+        return dict_for_tree_plus
+
+
+    def create_widget_for_tree(self,widget_type,tree_widget,column=None,items_depth=None,changed_method=None,text = None):
+        """Universal method for creation widgets for qTreeWidget
+        widget_type - dict ex. {"date":[changed_method]},{"check_box":[changed_method]} for single widgets and  {"container":[{"combobox":[changed_method,[value1,value2,...]},{"date":changed_method}] for container with multiple widgets
+        changed_method - the method called when the value of the widget is changed
+        tree_widget - current tree
+        column - number of column where the widget should be placed
+        items_depth - levels of tree to which the widget should be placed, 0 for top level items, 1 for 1st level children, etc.
+        text - widget text
+        """
+
+        def process_date_widget(item,item_depth,current_level):
+
+            for level in item_depth:
+
+                if current_level == level:
+
+                    if item.childCount() > 0:
+                        if "date" in widget_type.keys():
+
+                            self.date_widget(tree_widget,item,widget_type["date"][0],column)
+                        elif "check_box" in widget_type.keys():
+
+                            self.check_box_widget(tree_widget,text,item,widget_type["check_box"][0],column)
+                        elif "container" in widget_type.keys():
+
+                            self.create_container_with_multiple_widgets(tree_widget, item, column,
+                                                                        widget_type['container'])
+
+
+                        for j in range(item.childCount()):
+                            process_date_widget(item.child(j),item_depth,current_level+1)
+                    else:
+                        if "date" in widget_type.keys():
+
+                            self.date_widget(tree_widget, item, widget_type["date"][0], column)
+                        elif "check_box" in widget_type.keys():
+
+                            self.check_box_widget(tree_widget, text, item, widget_type["check_box"][0], column)
+                        elif type(widget_type) == dict and "container" in widget_type.keys():
+
+                            self.create_container_with_multiple_widgets(tree_widget, item, column,
+                                                                        widget_type['container'])
+
+
+        for i in range(tree_widget.topLevelItemCount()):
+            item = tree_widget.topLevelItem(i)
+
+            if 0 in items_depth:
+
+                if "date" in widget_type.keys():
+
+                    self.date_widget(tree_widget,item,widget_type["date"][0],column)
+                elif "check_box" in widget_type.keys():
+
+                    self.check_box_widget(tree_widget,text,item,widget_type["check_box"][0],column)
+                elif "container" in widget_type.keys():
+
+                    self.create_container_with_multiple_widgets(tree_widget,item,column,widget_type['container'])
+            if (not 0) in items_depth:
+                if items_depth[0] == 0:
+                    new_items_depth = items_depth[1:]
+                else:
+                    new_items_depth = items_depth.copy()
+                for j in range(item.childCount()):
+
+                    process_date_widget(item.child(j),new_items_depth,1)
+
+        tree_widget.resizeColumnToContents(column)
+
+    def date_widget(self,tree=None,item=None,change_method = None,column=1):
+        """Calls creation of QDateEdit widget and places it to the passed column for the passed item
+        tree - current tree
+        item - current item
+        change_method - the method called when the date value of the widget is changed
+        column - the column where the widget should be placed
+        """
+
+        date = self.date_widget_inner(tree= tree, item = item, change_method = change_method, column = column)
+        tree.setItemWidget(item, column, date)
+
+    def date_widget_inner(self, tree= None, item = None, change_method = None,column = 1):
+        """Creates and returns QDateEdit widget for the passed tree
+        """
+        date = QDateEdit()
+        date.setCalendarPopup(True)
+        date.setDate(datetime.now().date())
+        if change_method:
+
+            date.dateChanged.connect(lambda date_val, i=item, t=tree, c=column: change_method(i, t, c))  #date_val - the new date value of the widget
+
+        return date
+
+
+    def check_box_widget (self, tree= None, text = None, item=None, changed_status = None,column=2):
+        """ Creates checkbox widget for the passed tree
+        tree - current tree
+        text - widget text
+        item - current item
+        changed status - the method called when the checkbox status is changed
+        column - the column where the checkbox is placed
+        """
+
+        self.date_check = QCheckBox(text)
+        self.date_check.setChecked(False)
+        self.date_check.stateChanged.connect(lambda state, t = tree, d=item, c = column: changed_status(t, state, d, c))  # check_box state
+        self.tree.setItemWidget(item, column, self.date_check)
+
+    def on_end_date_check_changed(self,tree,state,item_one, column):
+
+        if state == 2:
+            item_widget = self.tree.itemWidget(item_one,column - 1)
+            if item_widget.layout():
+                container_info = {'children':[]}
+                for i in range(item_widget.layout().count()):
+                    child = item_widget.layout().itemAt(i).widget()
+                    if child:
+                        child_info = {
+                            'type':type(child).__name__,
+                            'widget':child,
+                            'object_name': child.objectName(),
+                            'is_enabled':child.isEnabled(),
+                            'is_visible':child.isVisible()
+                        }
+
+                        container_info['children'].append(child_info)
+
+
+                if container_info['children'][0]['type'] == "QComboBox":
+                    if container_info['children'][1]['type'] == "QDateEdit":
+                        combobox_widget = container_info['children'][0]['widget']
+                        date_widget = container_info['children'][1]['widget']
+                        for j in range(item_one.childCount()):
+                            item_child = item_one.child(j)
+                            item_child_widget = self.tree.itemWidget(item_child,column-1)
+                            child_combo = item_child_widget.layout().itemAt(0).widget()
+                            child_date = item_child_widget.layout().itemAt(1).widget()
+                            child_combo.setCurrentText(item_widget.layout().itemAt(0).widget().currentText())
+                            child_combo.setEnabled(False)
+
+                            if child_combo.currentText() != "Open date":
+                                child_date.setDate(item_widget.layout().itemAt(1).widget().date())
+                                child_date.setReadOnly(True)
+                                child_date.setStyleSheet("""
+                                QDateEdit {
+                                color: #707070;
+                                }
+                                QDateEdit QAbstractItemView {
+                                color: #707070;  /* Color for dates in the calendar popup */
+                                background-color: #FFFFFF;
+                                }
+                                """)
+
+
+
+            elif type(item_widget).__name__ == "QDateEdit":
+                for j in range(item_widget.childCount()):
+                    item_child = item_one.child(j)
+                    item_child.setDate(item_widget.date())
+                    item_widget.setReadOnly(True)
+        else:
+            item_widget = self.tree.itemWidget(item_one, column - 1)
+            if item_widget.layout():
+                container_info = {'children': []}
+                for i in range(item_widget.layout().count()):
+                    child = item_widget.layout().itemAt(i).widget()
+                    if child:
+                        child_info = {
+                            'type': type(child).__name__,
+                            'widget': child,
+                            'object_name': child.objectName(),
+                            'is_enabled': child.isEnabled(),
+                            'is_visible': child.isVisible()
+                        }
+
+                        container_info['children'].append(child_info)
+
+
+                if container_info['children'][0]['type'] == "QComboBox":
+                    if container_info['children'][1]['type'] == "QDateEdit":
+                        combobox_widget = container_info['children'][0]['widget']
+                        date_widget = container_info['children'][1]['widget']
+                        for j in range(item_one.childCount()):
+                            item_child = item_one.child(j)
+                            item_child_widget = self.tree.itemWidget(item_child, column - 1)
+                            child_combo = item_child_widget.layout().itemAt(0).widget()
+                            child_combo.setEnabled(True)
+                            child_date = item_child_widget.layout().itemAt(1).widget()
+                            child_date.setReadOnly(False)
+                            child_date.setStyleSheet("""
+                            QDateEdit {
+                            color: #222222;
+                        }
+                        QDateEdit QAbstractItemView {
+                            color: #222222;  /* Color for dates in the calendar popup */
+                            background-color: #FFFFFF;
+                        }
+                        """)
+
+    def date_widget_with_open_end_combobox(self, tree= None, item = None, change_method = None, column = 1):
+        """Create a date widget with an Open End option using a combobox"""
+
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0,0,0,0)
+        container_layout.setSpacing(5)
+
+        # Create date edit
+        date = QDateEdit()
+        date.setCalendarPopup(True)
+        date.setDate(datetime.now().date())
+
+        if change_method:
+            date.dateChanged.connect(lambda _, item = item, tree=tree,column = column: change_method(item,tree,column))
+
+        container_layout.addWidget(date)
+
+        #Add combobox for date type selection
+
+        if column == 3: #End date column
+            date_type_combo = QComboBox()
+            date_type_combo.addItems(["Specific Date", "Open End"])
+            date_type_combo.setProperty("item",item)
+            date_type_combo.setProperty("date_widget",date)
+
+            date_type_combo.currentTextChanged.connect(lambda text,item=item,date_widget = date,combo = date_type_combo:self.on_date_type_changed(text,item,date_widget,combo))
+
+            container_layout.addWidget(date_type_combo)
+
+        tree.setItemWidget(item, column, container)
+        return date
+
+    def on_date_type_changed(self,text,item,date_widget,combo):
+        if text == "Open End":
+            date_widget.setEnabled(False)
+            date_widget.setStyleSheet("QDateEdit{background_color:#fofofo; color: #888888;}")
+            date_widget.setSpecialValueText("Open End")
+            date_widget.setDate(datetime(2099,12,31).date())
+        else:
+            date_widget.setEnabled(True)
+            date_widget.setStyleSheet("")
+            date_widget.setSpecialValueText("")
+            date_widget.setDate(datetime.now().date())
+
+    def create_container_with_multiple_widgets(self,tree,item,column,content,changed_method = None):
+        """Add multiple widgets to a single column
+        tree -current tree
+        item - current item
+        column - column where the container should be placed
+        content - list od dictionaries, where keys - widget names, values[0] - changed_method for relevant widget
+
+        """
+        # Create a container widget
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0,0,0,0)
+        layout.setSpacing(5)
+
+        content_keys = []
+        content_widgets = []
+        widget_refs = {}
+        for i in range(len(content)):
+            content_keys.append(list(content[i].keys())[0])
+            if "date" in content[i].keys():
+
+                date_edit = self.date_widget_inner(tree, item, content[i]['date'][0], column)
+                #date_edit = self.date_widget_inner(tree,item,content[i]['date'],column)
+                date_edit.setObjectName(f"date_{id(item)}_{column}")
+                layout.addWidget(date_edit)
+                content_widgets.append(date_edit)
+                widget_refs["date"] = date_edit
+            elif "combobox" in content[i].keys():
+
+                combobox_widget = self.combobox_widget_inner(tree,item,content[i]["combobox"],column)
+                combobox_widget.setObjectName(f"combobox_{id(item)}_{column}")
+                layout.addWidget(combobox_widget)
+                content_widgets.append(combobox_widget)
+                widget_refs['combobox'] = combobox_widget
+
+            item.widget_refs = widget_refs
+
+            if not hasattr(item,"container_widgets"):
+                self.container_widgets = {}
+            self.container_widgets[id(item)] = {
+                "container": container,
+                "widgets": widget_refs
+            }
+
+        self.container_items_relationship(content_keys,content_widgets)
+
+        tree.setItemWidget(item,column,container)
+
+    def container_items_relationship(self,content_keys,content_widgets,widget_date=None):
+        """Set relationship between container widgets
+         content_keys - keys of dictionaries for widgets included in container
+         content_widgets - list of widgets included in container
+         """
+        if content_keys == ["combobox","date"]:
+            if content_widgets[0].currentText() == "Open date":
+                content_widgets[1].setDate(datetime(1900,1,1).date())
+                content_widgets[1].setReadOnly(True)
+                content_widgets[1].setStyleSheet("""
+            QDateEdit {
+            color: #707070;
+        }
+        QDateEdit QAbstractItemView {
+            color: #707070;  /* Color for dates in the calendar popup */
+            background-color: #FFFFFF;
+        }
+        """)
+            else:
+                if widget_date:
+                    content_widgets[1].setDate(widget_date)
+                else:
+                    content_widgets[1].setDate(datetime.now().date())
+                content_widgets[1].setReadOnly(False)
+                content_widgets[1].setStyleSheet("""
+                                    QDateEdit {
+                                    color: #222222;
+                                }
+                                QDateEdit QAbstractItemView {
+                                    color: #222222;  /* Color for dates in the calendar popup */
+                                    background-color: #FFFFFF;
+                                }
+                                """)
+
+    def get_widget_from_container(self,item,column,widget_type):
+        """Get a specific widget from a container using object name
+        widget_type - ex. "combobox","date"
+        """
+        container = self.tree.itemWidget(item,column)
+        if container:
+            #Find by object name pattern
+            widget = container.findChild(QWidget,f"{widget_type}_{id(item)}_{column}")
+            return widget
+        return None
+
+    def create_comobobox_widget(self,tree,item,content,column):
+        """ Calls creation of combobox widget and adds it the tree item
+        tree - current tree
+        item - current item
+        content - list where [0] - chenged_method, [1] - combobox values
+        column - the column where combobox should be placed
+        """
+        combobox_widget = self.combobox_widget_inner(tree,item,content,column)
+        tree.setItemWidget(item,column,combobox_widget)
+
+    def combobox_widget_inner(self,tree,item,content,column):
+        """Creates and returns combobox widget for the passed tree item"""
+        item = item
+        column = column
+        combo = QComboBox()
+        combo.addItems(content[1])
+        combo.currentTextChanged.connect(lambda text, t = tree, d=item, c = column: content[0](text,t,d,c))
+        return combo
+
+    def combobox_text_changed(self,text,tree,item,column):
+        combobox_widget = self.get_widget_from_container(item,column,"combobox")
+        date_widget = self.get_widget_from_container(item,column,"date")
+        self.container_items_relationship(["combobox","date"],[combobox_widget,date_widget])
+        self.on_date_changed(item,self.tree,column)
+
+
+
+
+
+
+
+
+
+
+
 
 
 

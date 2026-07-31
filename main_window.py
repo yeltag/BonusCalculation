@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self.all_orders = []
         self.setup_ui()
         self.load_employees_from_db()
+        self.current_kpi = None
         #self.new_page = NewPageTemplate('')
 
     def setup_ui(self):
@@ -117,7 +118,7 @@ class MainWindow(QMainWindow):
         config_menu.addAction(kpi_action)
 
         variable_action = QAction("Variables", self)
-        variable_action.triggered.connect(self.open_variables)
+        variable_action.triggered.connect(self.create_variable_entry_page)
         config_menu.addAction(variable_action)
 
         # Help menu
@@ -711,19 +712,19 @@ class MainWindow(QMainWindow):
     def calculate_bonuses(self, pre_calculated_results=None):
         """Calculate bonuses or display pre-calculated results"""
         import traceback
-        print("DEBUG: calculate_bonuses called with:", pre_calculated_results)
+
 
         if pre_calculated_results is False:
-            print("DEBUG: pre_calculated_results is False, treating as validation failure")
+
             pre_calculated_results = None
 
         if pre_calculated_results is not None:
             # Display pre-calculated results
-            print("DEBUG: Displaying pre-calculated results")
+
             results = pre_calculated_results
         else:
             # Calculate bonuses normally
-            print("DEBUG: Calculating bonuses from scratch")
+
             month = self.calc_month_combo.currentIndex() + 1
             year = self.calc_year_spin.value()
             department_filter = self.calc_dept_combo.currentText()
@@ -735,34 +736,34 @@ class MainWindow(QMainWindow):
             employees_with_changes = calculator.get_employees_with_salary_changes(year, month)
 
             # DEBUG: Check what's returned
-            print(f"DEBUG: Found {len(employees_with_changes)} employees with salary changes")
+
             for i, emp_data in enumerate(employees_with_changes):
                 employee = emp_data['employee']
                 changes = emp_data['changes']
-                print(
-                    f"  Employee {i + 1}: {employee['first_name']} {employee['last_name']} has {len(changes)} changes")
-                for j, change in enumerate(changes):
-                    print(f"    Change {j + 1}: {change['change_date'].strftime('%Y-%m-%d')}, "
-                          f"{change['old_salary']} -> {change['new_salary']}")
+                #print(
+                #    f"  Employee {i + 1}: {employee['first_name']} {employee['last_name']} has {len(changes)} changes")
+                #for j, change in enumerate(changes):
+                 #   print(f"    Change {j + 1}: {change['change_date'].strftime('%Y-%m-%d')}, "
+                  #        f"{change['old_salary']} -> {change['new_salary']}")
 
             salary_adjustments = None
             if employees_with_changes:
-                print(f"\nDEBUG main_window: Found {len(employees_with_changes)} employees with changes")
+
                 for i, emp_data in enumerate(employees_with_changes):
                     employee = emp_data['employee']
                     changes = emp_data['changes']
-                    print(f"  Employee {i + 1}: {employee['first_name']} {employee['last_name']} ({employee['id']})")
-                    for j, change in enumerate(changes):
-                        print(
-                            f"    Change {j + 1}: {change['change_date'].strftime('%Y-%m-%d')}, {change['old_salary']} -> {change['new_salary']}")
+
+                    #for j, change in enumerate(changes):
+                      #  print(
+                        #    f"    Change {j + 1}: {change['change_date'].strftime('%Y-%m-%d')}, {change['old_salary']} -> {change['new_salary']}")
 
                 # Show advanced salary adjustment dialog
                 dialog = AdvancedSalaryAdjustmentDialog(self, employees_with_changes, working_days)
                 if dialog.exec() == QDialog.DialogCode.Accepted:
                     salary_adjustments = dialog.get_adjustments()
-                    print(f"DEBUG: Got salary adjustments for {len(salary_adjustments)} employees")
+
                 else:
-                    print("DEBUG: Salary adjustment dialog cancelled")
+
                     return
 
             results = calculator.calculate_bonuses_with_validation(
@@ -771,14 +772,14 @@ class MainWindow(QMainWindow):
 
             # Check for both None and False
             if results is None or results is False:
-                print("DEBUG: Validation failed, returning early")
+
                 return
 
-        print("main_window calculate_bonuses results: ", results)
+
 
         # Safety check - ensure results is a list
         if not isinstance(results, list):
-            print(f"ERROR main_window calculate_bonuses line 554: Expected list but got {type(results)}: {results}")
+
             QMessageBox.critical(self, "Error", f"Unexpected result type: {type(results)}")
             return
 
@@ -869,7 +870,7 @@ class MainWindow(QMainWindow):
 
     def filter_orders(self):
         """Filter orders based on search criteria and date range"""
-        print(f"DEBUG filter_orders: all_orders length = {len(self.all_orders) if hasattr(self, 'all_orders') else 'no attr'}")
+
 
         if not hasattr(self, 'all_orders') or not self.all_orders:
             # If no orders, clear the table and return
@@ -892,9 +893,9 @@ class MainWindow(QMainWindow):
             # Convert order_date string to datetime.date object
             try:
                 order_date = datetime.strptime(order["order_date"], "%Y-%m-%d").date()
-                print(f"DEBUG: Order {index} date: {order_date} (string: {order['order_date']})")
+
             except:
-                print(f"DEBUG: Error parsing date for order {index}: {order['order_date']}, Error: {e}")
+
                 order_date = None
 
             # Date range filter
@@ -903,7 +904,7 @@ class MainWindow(QMainWindow):
 
             # Order type filter
             if order_type_filter != "All Types" and order["order_action"] != order_type_filter:
-                print(f"DEBUG: Order {index} filtered out by type")
+
 
                 continue
 
@@ -922,13 +923,13 @@ class MainWindow(QMainWindow):
                     matches = True
 
                 if not matches:
-                    print(f"DEBUG: Order {index} filtered out by search text")
+
                     continue
 
             filtered_orders.append(order)
-            print(f"DEBUG: Order {index} passed filters")
 
-        print(f"DEBUG: Total filtered orders: {len(filtered_orders)}")
+
+
         self.display_orders(filtered_orders)
 
     def load_orders_from_db(self):
@@ -938,7 +939,7 @@ class MainWindow(QMainWindow):
             if self.all_orders is None:
                 self.all_orders = []
         except Exception as e:
-            print(f"Error loading orders: {e}")
+
             self.all_orders = []
 
         self.filter_orders()  # Apply current filters
@@ -1014,10 +1015,10 @@ class MainWindow(QMainWindow):
                 for emp in self.employees:
                     if emp["id"] == employee_id:
                         return f"{emp['first_name']} {emp['last_name']} {employee['father_name']}"
-                return "Unknown"
+                return ""
         except Exception as e:
-            print(f"Error getting employee name for {employee_id}: {e}")
-            return "Unknown"
+
+            return ""
 
     def open_departments(self):
         """Show department page"""
@@ -1092,7 +1093,6 @@ class MainWindow(QMainWindow):
                                                                                     self.edit_kpi,
                                                                                     self.remove_kpi])
 
-
         central_widgets = [self.kpi_table]
 
 
@@ -1105,11 +1105,12 @@ class MainWindow(QMainWindow):
         # Buttons
 
         add_kpi_btn = QPushButton("Add KPI")
-        add_kpi_btn.clicked.connect(self.add_kpi)
+        add_kpi_btn.clicked.connect(self.pre_add_kpi)
 
         remove_kpi_btn = QPushButton("Remove Selected")
 
         edit_kpi_btn = QPushButton("Edit Selected")
+        edit_kpi_btn.clicked.connect(self.edit_kpi)
 
         button_widgets = [add_kpi_btn,remove_kpi_btn,edit_kpi_btn]
 
@@ -1121,9 +1122,6 @@ class MainWindow(QMainWindow):
 
         return self.new_kpi_page
 
-
-
-
     def create_variable_page(self):
         pass
 
@@ -1134,10 +1132,10 @@ class MainWindow(QMainWindow):
 
     def load_departments_inner(self):
         self.all_departments = self.config_manager.get_departments()
-        print(self.all_departments)
+
         self.departments_list = []
         for key, value in self.all_departments.items():
-            self.departments_list.append({"Department": key, "Status": value})
+            self.departments_list.append({"department": key, "status": value})
         return self.departments_list
 
 
@@ -1148,9 +1146,6 @@ class MainWindow(QMainWindow):
                 self.load_departments()
                 self.new_department_page.refresh_with_filters(self.departments_list, self.departments_table)
 
-
-
-
                 QMessageBox.information(self, "Success", "Department added successfully!")
 
             else:
@@ -1158,7 +1153,7 @@ class MainWindow(QMainWindow):
 
     def remove_departments(self,table = None):
         current_item = self.departments_table.selectedItems()
-        print(current_item)
+
         if current_item:
             department = current_item[0].text()
             reply = QMessageBox.question(self, "Confirm", f"Remove department:{department}?")
@@ -1237,26 +1232,52 @@ class MainWindow(QMainWindow):
 
 
     def edit_kpi(self,table):
-        pass
+        current_item = self.kpi_table.currentItem()
 
-    def add_kpi(self,table):
+        # print("current item kpi: ",current_item.data(Qt.ItemDataRole.UserRole))
+
+        if current_item:
+
+            kpi_list = self.config_manager.get_kpis()
+            for kpi in kpi_list:
+                if kpi["id"] == current_item.data(Qt.ItemDataRole.UserRole):
+                    self.current_kpi = kpi
+                    self.add_kpi(self.kpi_table)
+                    return
+        else:
+            QMessageBox.warning(self, "Error", "Please select a kpi!")
+
+
+    def pre_add_kpi(self,table):
+        self.current_kpi = None
+        self.add_kpi()
+
+
+    def add_kpi(self,table=None):
         """Open KPI editor to add new KPI"""
-        print(f"DEBUG ConfigDialog: self.database = {self.database}")
 
-        dialog = KPIEditorDialog(self, None, self.config_manager, database=self.database)
+
+        dialog = KPIEditorDialog(self, self.current_kpi if self.current_kpi else None, self.config_manager, database=self.database,username = self.username)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_kpi = dialog.get_kpi_data()
 
             # Add to configuration
-            if self.config_manager.add_kpi(new_kpi):
+            #if self.config_manager.add_kpi(new_kpi):
+            if new_kpi:
+                self.config_manager.add_kpi()
                 self.load_kpis()
+                self.new_kpi_page.refresh_with_filters(self.all_kpi,self.kpi_table)
                 QMessageBox.information(self, "Success", "KPI added successfully!")
             else:
                 QMessageBox.warning(self, "Error", "Failed to add KPI")
 
     def remove_kpi(self,table):
         pass
+
+    def load_kpis(self):
+        self.all_kpi = self.config_manager.get_kpis()
+
 
 
 

@@ -163,7 +163,7 @@ class ConfigDialog(QDialog):
 
     def add_kpi(self):
         """Open KPI editor to add new KPI"""
-        print(f"DEBUG ConfigDialog: self.database = {self.database}")
+
 
         dialog = KPIEditorDialog(self,None,self.config_manager, database = self.database)
 
@@ -184,19 +184,13 @@ class ConfigDialog(QDialog):
             kpis = self.config_manager.get_kpis()
             kpi_to_edit = kpis[current_row]
 
-            print(f"=== DEBUG EDIT KPI ===")
-            print(f"Editing KPI at index {current_row}")
-            print(f"KPI to edit: {kpi_to_edit}")
-            print(f"KPI ID: {kpi_to_edit.get('id', 'NO ID')}")
-            print(f"KPI Name: {kpi_to_edit.get('name')}")
+
 
             dialog = KPIEditorDialog(self,kpi_to_edit, self.config_manager, self.database)
 
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 updated_kpi = dialog.get_kpi_data()
-                print(f"Updated KPI data: {updated_kpi}")
-                print(f"Updated KPI ID: {updated_kpi.get('id', 'NO ID')}")
-                print(f"=== END DEBUG ===")
+
 
                 # If KPI has an ID (from database), use add_kpi which will update via INSERT OR REPLACE
                 if "id" in kpi_to_edit:
@@ -230,9 +224,9 @@ class ConfigDialog(QDialog):
                 if self.database and "id" in kpi_to_remove:
                     try:
                         self.database.delete_kpi(kpi_to_remove["id"])
-                        print(f"DEBUG: KPI {kpi_name} deleted from database")
+
                     except Exception as e:
-                        print(f"Error deleting KPI from database: {e}")
+
                         QMessageBox.warning(self, "Error", f"Failed to remove KPI from database: {e}")
                         return
 
@@ -248,8 +242,7 @@ class ConfigDialog(QDialog):
             QMessageBox.warning(self, "Error", "Please select a KPI to remove")
 
     def test_buttons(self):
-        print("Testing KPIs tab buttons...  config_dialog.py  test_buttons line 211")
-        print(f"KPI list has {self.kpi_list.count()} items test_buttons line 212")
+
 
         # Check if buttons exist
         for i in range(self.layout().count()):
@@ -259,7 +252,7 @@ class ConfigDialog(QDialog):
 
     def manage_variables(self):
         """Open custom variables management dialog"""
-        print(f"DEBUG manage_variables line 222: Database available: {self.config_manager.database is not None}")
+
 
         if self.config_manager.database:
             dialog = VariablesManagerDialog(self, self.config_manager.database)

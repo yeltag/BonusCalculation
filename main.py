@@ -22,12 +22,11 @@ def exception_hook(exctype, value, traceback_obj):
     msg.setIcon(QMessageBox.Icon.Critical)
     msg.setText("An error occured while starting the application.")
     msg.setInformativeText(f"Error:{str(value)}")
-    msg.setWindowTitle("A pplication Error")
+    msg.setWindowTitle("Application Error")
     msg.exec()
 
     # Call the default exception hook
     sys.__excepthook__(exctype, value, traceback_obj)
-
 
 def main():
     try:
@@ -40,10 +39,8 @@ def main():
         # Create the application
         app = QApplication(sys.argv)
 
-
         # System initialization
         initialize_system()
-
 
         # Create and show login window
         login_window = LoginWindow()
@@ -55,7 +52,6 @@ def main():
     except Exception as e:
         print(f"Application failed to start: {e}")
         input("press Enter to exit...")  #Keep console open to see error
-
 
 def initialize_system():
     """Initialize the system with clean configuration"""

@@ -1,11 +1,18 @@
 import sys
-from PyQt6.QtWidgets import(QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QTextEdit,
-    QPushButton, QComboBox, QListWidget, QListWidgetItem, QMessageBox,
-    QGroupBox, QSplitter, QFrame, QScrollArea)
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QTextEdit,
+                             QPushButton, QComboBox, QListWidget, QListWidgetItem, QMessageBox,
+                             QGroupBox, QSplitter, QFrame, QScrollArea, QDialogButtonBox, QDateEdit, QTableWidgetItem)
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QPalette
 import re
+from employees_selection_for_kpi import EmployeeSelectionForKPI
+from datetime import datetime
+from new_page_template import NewPageTemplate
+from database import Database
+import json
+
+
 
 class FormulaHighlighter(QSyntaxHighlighter):
     """Syntax highlighter for KPI formulas"""
@@ -48,23 +55,30 @@ class FormulaHighlighter(QSyntaxHighlighter):
                 self.setFormat(start, end - start, format)
 
 class KPIEditorDialog(QDialog):
-    def __init__(self, parent = None, kpi_data = None, config_manager = None, database = None):
+    def __init__(self, parent = None, kpi_data = None, config_manager = None, database = None,username = None):
         super().__init__(parent)
         self.kpi_data = kpi_data or {}
         self.config_manager = config_manager
+        self.username = username
         self.database = database
+        self.employee_selection = EmployeeSelectionForKPI
         self.is_edit_mode = kpi_data is not None
+        self.selected_departments = self.database.get_kpi_departments(self.kpi_data['id']) if (self.kpi_data and self.kpi_data['id']) else []
+        print("self.selected-departments: ",self.selected_departments)
+        self.selected_employees = self.database.get_kpi_employees(self.kpi_data['id']) if (self.kpi_data and self.kpi_data['id']) else []
+        print("self.selected_employees: ",self.selected_employees)
 
         # If database is None, try to get it from parent (ConfigDialog)
         if self.database is None and parent is not None:
             if hasattr(parent, 'database'):
                 self.database = parent.database
-                print(f"DEBUG: Got database from parent: {self.database}")
+
             elif hasattr(parent, 'config_manager') and hasattr(parent.config_manager, 'database'):
                 self.database = parent.config_manager.database
-                print(f"DEBUG: Got database from parent.config_manager: {self.database}")
+
 
         self.is_edit_mode = kpi_data is not None
+        self.order_required = False
 
         if self.is_edit_mode:
             self.setWindowTitle("Edit KPI formula")
@@ -74,6 +88,10 @@ class KPIEditorDialog(QDialog):
         self.setup_ui()
         self.setFixedSize(900,650)
         self.resize(1000,700)
+        if self.is_edit_mode:
+
+            QTimer.singleShot(100, self.show_edit_mode_warning)
+
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
@@ -123,6 +141,11 @@ class KPIEditorDialog(QDialog):
         if self.is_edit_mode:
             self.load_existing_data()
 
+    def show_edit_mode_warning(self):
+        """Show warning about edit mode restrictions"""
+        QMessageBox.warning(None,"You are in KPI edit mode","Only the 'Description' field and employee applicability list can be modified while in KPI edit mode.")
+
+
     def create_formula_panel(self):
         """Create the formula editing panel"""
         panel = QFrame()
@@ -155,14 +178,19 @@ class KPIEditorDialog(QDialog):
         method_layout.addWidget(self.method_combo)
         basic_layout.addLayout(method_layout)
 
-        # Applicable Departments
-        basic_layout.addWidget(QLabel("Applicable Departments (leave emplty for all):"))
-        self.dept_list = QListWidget()
-        if self.config_manager:
-            departments = self.config_manager.get_departments()
-            self.dept_list.addItems(departments)
-        self.dept_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        basic_layout.addWidget(self.dept_list)
+        #Selection status Label
+
+        if self.is_edit_mode or self.selected_departments or self.selected_employees:
+            self.selection_status_label = QLabel(f"Selected: {len(self.selected_departments)} department(s), {len(self.selected_employees)} employee(s)")
+            self.selection_status_label.setStyleSheet("color: green;font-style: italic; margin-top: 5px;")
+        else:
+            self.selection_status_label = QLabel("⚠ No departments or employees selected")
+            self.selection_status_label.setStyleSheet("color: orange; font-style: italic; margin-top: 5px;")
+        basic_layout.addWidget(self.selection_status_label)
+
+        select_emp = QPushButton("Select applicable employees")
+        select_emp.clicked.connect(self.open_employee_selection)
+        basic_layout.addWidget(select_emp)
 
         basic_group.setLayout(basic_layout)
         layout.addWidget(basic_group)
@@ -171,7 +199,7 @@ class KPIEditorDialog(QDialog):
         formula_group = QGroupBox("Formula Editor")
         formula_layout = QVBoxLayout()
 
-        formula_layout.addWidget(QLabel("Formula (Python syntax):"))
+        formula_layout.addWidget(QLabel("Formula:"))
 
         self.formula_edit = QTextEdit()
         self.formula_edit.setPlaceholderText(
@@ -216,7 +244,7 @@ class KPIEditorDialog(QDialog):
 
     def create_variables_panel(self):
         """Create the variables and functions panel"""
-        print(f"DEBUG create_variables_panel kpi_editor line 207: self.database = {self.database}")
+
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -259,11 +287,11 @@ class KPIEditorDialog(QDialog):
         if self.database:  # Only if we have database access
             try:
                 custom_variables = self.database.get_custom_variables()
-                print("DEBUG: Custom variables from database kpi_editor_dialog create_variable panel line 235:")
+
                 for i, var in enumerate(custom_variables):
                     print(f"  {i}: {var}")
             except Exception as e:
-                print(f"Error loading custom variables:{e} kpi_editor_dialog.py create_variables_panel line 236")
+
                 # Add a label to show error or empty state
                 error_label = QLabel("Unable to load custom variables")
                 custom_vars_layout.addWidget(error_label)
@@ -378,23 +406,35 @@ class KPIEditorDialog(QDialog):
             return
 
         self.name_input.setText(self.kpi_data.get("name",""))
+        self.name_input.setReadOnly(True)
+        self.name_input.setStyleSheet("color: gray")
         self.desc_input.setText(self.kpi_data.get("description",""))
         self.method_combo.setCurrentText(self.kpi_data.get("calculation_method","formula"))
+        self.method_combo.setEnabled(False)
+        self.method_combo.setStyleSheet("color: gray")
 
         # Set formula or simple values
         if self.kpi_data.get("calculation_method") == "percentage":
             self.percentage_input.setText(str(self.kpi_data.get("percentage","")))
+            self.percentage_input.setReadOnly(True)
         elif self.kpi_data.get("calculation_method") == "fixed":
             self.fixed_input.setText(str(self.kpi_data.get("fixed_amount","")))
+            self.fixed_input.setReadOnly(True)
         else:
             self.formula_edit.setPlainText(self.kpi_data.get("formula",""))
+            self.formula_edit.setReadOnly(True)
+            self.highlighter.setDocument(None)
+            self.formula_edit.setStyleSheet("QTextEdit{color: gray}")
+
 
         # Select applicable deartments
         applicable_depts = self.kpi_data.get("applicable_departments",[])
-        for i in range(self.dept_list.count()):
-            item = self.dept_list.item(i)
-            if item.text() in applicable_depts:
-                item.setSelected(True)
+        applicable_empls = self.kpi_data.get('applicable_employees',[])
+        #for i in range(self.dept_list.count()):
+            #pass
+            # item = self.dept_list.item(i)
+            # if item.text() in applicable_depts:
+            #     item.setSelected(True)
 
     def test_formula(self):
         """Test the current formula with sample data"""
@@ -421,13 +461,36 @@ class KPIEditorDialog(QDialog):
 
             # Safe formula evaluation
             result = self.safe_eval_formula(formula,test_data)
+            formula1 = str(formula)
+            for sign in ["+","-","*","/"]:
+                formula1 = formula1.replace(sign," ")
+            formula_list = formula1.split()
+
+            custom_variables =[]
+
+            if self.database:
+                try:
+                    custom_variables = self.database.get_custom_variables()
+                except Exception as e:
+                    print(f"Error loading custom variables for evaluation:{e}")
+
+            msg_text = ''
+
+            for i in formula_list[1:]:
+                for j in custom_variables:
+                    if j["name"] == i:
+
+                        test_data[i]=j["default_value"]
+                        msg_text = msg_text + f"{i}: {test_data[i]}\n"
+
+
+
             QMessageBox.information(self, "Formula Test",
                                f"Formula tested successfully!\n\n"
                                     f"test Data:\n"
                                     f"Base Salary: {test_data["base_salary"]:,.2f}\n"
-                                    f"Performance Rating: {test_data["performance_rating"]}\n"
-                                    f"Years of Service: {test_data["years_of_service"]}\n\n"
-                                    f"Result: {result:,.2f}")
+                                    f"{msg_text}"
+                                    f"Result: {result}")
 
         except Exception as e:
             QMessageBox.warning(self, "Formula Error",
@@ -483,9 +546,7 @@ class KPIEditorDialog(QDialog):
         try:
             return eval(formula, {"__builtins__": {}}, safe_dict)
         except Exception as e:
-            print(f"Error evaluating formula: {e}")
-            print(f"Formula: {formula}")
-            print(f"Available variables: {list(safe_dict.keys())}")
+
             raise
 
     def validate_and_save(self):
@@ -501,21 +562,28 @@ class KPIEditorDialog(QDialog):
             errors.append("KPI name is required")
 
         # Get selected departments
-        selected_depts = [item.text() for item in self.dept_list.selectedItems()]
+        #selected_depts = [item.text() for item in self.dept_list.selectedItems()]
+        #print("self.result: ",type(self.result) )
+        #selected_depts = self.result["departments"]
+        #selected_employees = self.result["employees"]
 
         # Prepare KPI data based on method
         kpi_data = {
             "name": name,
             "description": description,
             "calculation_method": method,
-            "applicable_departments": selected_depts,
+            "applicable_departments": [d['department_name'] for d in self.selected_departments],
+            "applicable_employees": [e['employee_id'] for e in self.selected_employees],
             "weight": 1.0,  # Default weight
-            "is_active": True
+            "is_active": True,
+            "created_by": self.username,
+
         }
 
         # PRESERVE THE ID IF WE'RE IN EDIT MODE
         if self.is_edit_mode and "id" in self.kpi_data:
             kpi_data["id"] = self.kpi_data["id"]
+
 
         if method == "percentage":
             try:
@@ -538,16 +606,16 @@ class KPIEditorDialog(QDialog):
             if not formula:
                 errors.append("Formula is required for formula calculation method")
             else:
-                print("Testing formula with sample data")
+
                 try:
                     # Test with only base_salary (custom variables added automatically)
                     test_data = {"base_salary": 5000}
                     result = self.safe_eval_formula(formula, test_data)
-                    print(f"DEBUG: Formula test passed with result: {result}")
+
                     kpi_data["formula"] = formula
 
                 except Exception as e:
-                    print(f"DEBUG: Formula test failed with error: {e}")
+
                     errors.append(f"Formula contains errors: {str(e)}")
 
         # Show errors if any
@@ -556,12 +624,308 @@ class KPIEditorDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", error_msg)
             return
 
-        self.kpi_data = kpi_data
-        self.accept()
+        # Check if any departments or employees were selected
+        if not self.selected_departments and not self.selected_employees:
+            # Show confirmation dialog
+            reply = QMessageBox.question(
+                self,
+                "No Applicability Selected",
+                "This KPI has no departments or employees selected.\n\n"
+                "It will be saved but won't apply to anyone.\n\n"
+                "Do you want to:\n"
+                "Click 'Yes' to save without applicability (can add later)\n"
+                "Click 'No' to go back and select departments/employees",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+
+                QMessageBox.StandardButton.No
+
+            )
+
+            if reply == QMessageBox.StandardButton.No:
+                # User wants to select departments/employees
+                self.open_employee_selection()
+                return
+
+
+
+        if self.order_required:
+            order_reply = QMessageBox()
+            order_reply.setWindowTitle("Order details required")
+            order_reply.setText("New KPI applicability should be based on order.  Please, enter order details.")
+            order_reply.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+            yes_button = order_reply.button(QMessageBox.StandardButton.Yes)
+            yes_button.setText("Add order")
+            no_button = order_reply.button(QMessageBox.StandardButton.No)
+            no_button.setText("Cancel")
+            order_result = order_reply.exec()
+
+            if order_result == QMessageBox.StandardButton.Yes:
+                success = self.database.save_kpi_with_applicability(
+                    kpi_data,
+                    departments=self.selected_departments if self.selected_departments else None,
+                    employees=self.selected_employees if self.selected_employees else None,
+
+                    excluded_employees=None,
+                    new_order = True,
+                    username = self.username)
+
+                if success:
+                    self.kpi_data = kpi_data
+                    self.accept()
+                else:
+                    QMessageBox.critical(self,"Save Error", "Failed to save KPI to database")
+
+                self.kpi_applicability_order()
+
+            else:
+                print("Order cancelled")
+
+        else:
+
+            success = self.database.save_kpi_with_applicability(
+                kpi_data,
+                departments=self.selected_departments if self.selected_departments else None,
+                employees=self.selected_employees if self.selected_employees else None,
+
+                excluded_employees=None,
+                new_order = False,
+                username = self.username)
+
+            if success:
+                self.kpi_data = kpi_data
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Save Error", "Failed to save KPI to database")
+
+
 
     def get_kpi_data(self):
         """Return the KPI data"""
         return self.kpi_data
+
+    def open_employee_selection(self,exclusion = False):
+        """Open the employee selection dialog with existing selections"""
+        # Covert selected_departments to the format expected by the dialog
+        existing_depts = []
+        for dept in self.selected_departments:
+            existing_depts.append({
+                "department_name": dept.get('department_name'),
+                'start_date': dept.get('start_date'),
+                'apply_to_all':dept.get('apply_to_all'),
+                'check_state':dept.get('check_state'),
+                'check_box_state':dept.get('check_box_state'),
+                'end_date':dept.get('end_date'),
+                'enddate_combobox':dept.get('enddate_combobox'),
+                'enddate_check':dept.get('enddate_check'),
+                'created_by':dept.get('created_by'),
+                'version': dept.get('version')
+            })
+        existing_emps = []
+        for emp in self.selected_employees:
+            existing_emps.append({
+                'employee_id': emp.get('employee_id'),
+                'start_date':emp.get('start_date'),
+                'check_state':emp.get('check_state'),
+                'end_date':emp.get('end_date'),
+                'combo_text':emp.get('combo_text'),
+                'version':emp.get('version')
+            })
+
+        selection_dialog = EmployeeSelectionForKPI(
+
+            existing_departments = existing_depts,
+            existing_employees = existing_emps,
+            exclusion = exclusion
+        )
+
+        #if hasattr(self, "selected_departments") and self.selected_departments:
+
+            # Pass the existing selections to pre-populate the dialog
+            #selection_dialog.set_selected_data(departments=self.selected_departments,
+                                               #employees = self.selected_employees)
+
+        selection_dialog.data_saved.connect(self.on_employee_data_saved)
+
+        selection_dialog.exec()
+
+    def load_existing_applicability(self):
+        """Load existing department/employee selections for edit mode"""
+        if self.database and self.kpi_data.get("id"):
+            kpi_with_applicability = self.database.get_kpi_with_applicability(self.kpi_data['id'])
+            if kpi_with_applicability:
+                self.selected_departments = kpi_with_applicability.get("departments",[])
+                self.selected_employees = kpi_with_applicability.get("employees",[])
+
+    def on_employee_data_saved(self,data,order=False,dept_changes=[],emp_changes=[]):
+        """Handle the saved employee selection data"""
+        # Clear existing selections
+        self.selected_departments = []
+        self.selected_employees = []
+        self.order_required = order
+        self.dept_changes = dept_changes
+        self.emp_changes = emp_changes
+
+        # Process departments that are checked
+        for dept_data in data.get('departments', []):
+
+            #if dept_data.get('check_state') == Qt.CheckState.Checked.value:
+            if dept_data.get('check_state') != 0:
+                # Get the date properly
+                date_value = dept_data.get('start_date')
+                start_date = None
+
+                if date_value:
+                    # If it's a QDate object
+                    if hasattr(date_value, 'toString'):
+                        start_date = date_value.toString("yyyy-MM-dd")
+                    # If it's a string already
+                    elif isinstance(date_value, str):
+                        start_date = date_value
+                    # If it's something else, try to convert
+                    else:
+                        start_date = str(date_value)
+                else:
+                    start_date = datetime.now().strftime("%Y-%m-%d")
+
+                # Get the checkbox state (Apply to all)
+                check_box_state = dept_data.get('check_box_state')
+                apply_to_all = False
+                if check_box_state:
+                    # Check if it's Qt.CheckState.Checked (value 2) or True
+                    if check_box_state == Qt.CheckState.Checked or check_box_state == 2:
+                        apply_to_all = True
+                    elif hasattr(check_box_state, 'value'):
+                        apply_to_all = check_box_state == Qt.CheckState.Checked
+
+
+                self.selected_departments.append({
+                    'check_state': dept_data.get('check_state'),
+                    'department_name': dept_data.get('department'),
+                    'start_date': start_date,  # Store as string
+                    'end_date': dept_data.get('end_date'),
+                    'apply_to_all': apply_to_all,
+                    'check_box_state': check_box_state,
+                    'version':dept_data.get('version'),
+                    'enddate_combobox': dept_data.get('enddate_combobox'),
+                    'enddate_check':dept_data.get('enddate_check')
+
+
+
+                })
+
+                # Process employees that are checked
+                for emp_list in dept_data.get('employees', []):
+                    #for emp_data in emp_list:
+                    if emp_list.get('check_state') == 2:
+                        date_value = emp_list.get('start_date')
+                        start_date = None
+
+                        if date_value:
+                            if hasattr(date_value, 'toString'):
+                                start_date = date_value.toString("yyyy-MM-dd")
+                            elif isinstance(date_value, str):
+                                start_date = date_value
+                            else:
+                                start_date = str(date_value)
+                        else:
+                            start_date = datetime.now().strftime("%Y-%m-%d")
+
+                        if emp_list.get('version'):
+                            version = emp_list.get('version')
+                        else:
+                            version = 1
+
+                        self.selected_employees.append({
+                            'employee_id': emp_list.get('id'),
+                            'start_date': start_date,  # Store as string
+                            'end_date': emp_list.get('end_date'),
+                            'check_state':emp_list.get('check_state'),
+                            'combo_text':emp_list.get('combo_text'),
+                            'created_by':self.username,
+                            'version':version
+
+                        })
+
+        # Update UI to show selection count
+        self.update_selection_display()
+
+
+    def update_selection_display(self):
+        """Update the UI to show current selections"""
+        dept_count = len(self.selected_departments)
+        emp_count = len(self.selected_employees)
+
+        if dept_count > 0 or emp_count > 0:
+            status_text = f"Selected: {dept_count} department(s), {emp_count} employee(s)"
+            self.selection_status_label.setStyleSheet("color: green;")
+        else:
+            status_text = "⚠ No departments or employees selected"
+            self.selection_status_label.setStyleSheet("color: orange;")
+            # You would need to add a Label widget to display this
+        if hasattr(self, 'selection_status_label'):
+            self.selection_status_label.setText(status_text)
+
+    def kpi_applicability_order(self):
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add KPI Applicability Order")
+        dialog.resize(600, 700)
+
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Order Number"))
+        input_field = QLineEdit()
+        layout.addWidget(input_field)
+        layout.addWidget(QLabel("Order date"))
+        order_date = NewPageTemplate.date_widget_inner(self,None,None,None,None)
+        layout.addWidget(order_date)
+        header_labels = ["Department/Employee","Changed field","Old value","New value"]
+        table_elements = []
+
+        for dept in self.dept_changes:
+            table_elements.append({header_labels[0].lower():dept[0],header_labels[1].lower():dept[1],header_labels[2].lower():dept[2],header_labels[3].lower():dept[3],"id":dept[0],"type":"department"})
+        for emp in self.emp_changes:
+            table_elements.append({header_labels[0].lower():emp[0],header_labels[1].lower():emp[1],header_labels[2].lower():emp[2],header_labels[3].lower():emp[3],"id":emp[4],"type":"employee"})
+
+        print("table_elements: ",table_elements)
+        kpi_changes_table = NewPageTemplate.create_qtablewidget_tool(self,4,header_labels,None,None)
+        NewPageTemplate.display_elements(self,table_elements,kpi_changes_table)
+        layout.addWidget(kpi_changes_table)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                      QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            if input_field.text() == '':
+                QMessageBox.information(self, "Error", "Please enter order number")
+                return
+            else:
+
+                order_number = input_field.text()
+                order_date_str = order_date.date().toString("yyyy-MM-dd")
+                for line in table_elements:
+                    if line['type'] == 'department':
+                        department = line['id']
+                        employee = ''
+                        new_applicability = json.dumps([line['changed field'], line['new value'], department])
+                    else:
+
+                        employee = line["id"]
+                        department = self.database.get_employee_by_id(employee)['department']
+                        new_applicability = json.dumps([line['changed field'], line['new value'], employee])
+                    order_action = "new kpi applicability"
+
+                    Database.save_order_record(self,order_number,employee, department, order_date_str,order_date_str,order_action,"","",new_applicability)
+
+
+
+
+                print(f"You typed: {input_field.text()}{order_date.date().toString("yyyy-MM-dd")}")
+        else:
+            print("Dialog cancelled")
+
 
 
 

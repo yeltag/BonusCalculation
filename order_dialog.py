@@ -10,14 +10,19 @@ from employee_utils import create_employee_with_history, get_current_salary
 from config_manager import ConfigManager
 from database import Database
 import sqlite3
+from kpi_editor_dialog import KPIEditorDialog
+from employees_selection_for_kpi import EmployeeSelectionForKPI
 
 class OrderDialog(QDialog):
     def __init__(self, parent = None, order_data = None, config_manager = None,employee = None,order_type = None):
         super().__init__(parent)
+
         self.order_data = order_data
         self.order_type = order_type
         self.database = Database()
         self.config_manager = config_manager or ConfigManager(database=self.database)
+        self.kpi_editor = KPIEditorDialog(parent = self,config_manager = self.config_manager,database = self.database)
+        #self.employee_selection = EmployeeSelectionForKPI()
         self.employee = employee
 
         self.employee_combo = None
@@ -93,7 +98,7 @@ class OrderDialog(QDialog):
         # Order Type Selection
         form_layout.addWidget(QLabel("Type of Order:"))
         self.order_type_combo = QComboBox()
-        order_types = ["employment","termination","salary change","department change"]
+        order_types = ["employment","termination","salary change","department change","exclusion from kpi"]
         self.order_type_combo.addItems(order_types)
         if self.order_type:
             self.order_type_combo.setCurrentText(self.order_type)
@@ -142,13 +147,19 @@ class OrderDialog(QDialog):
         new_departments = []
         departments = self.config_manager.get_departments()
 
-        if text != "employment":
+
+
+
+        if self.text != "employment" and self.text != "exclusion from kpi":
             new_departments.extend(departments)
-        else:
+        elif self.text == "employment":
 
             for dept in departments:
                 if departments[dept] == "active":
                     new_departments.append(dept)
+
+        else:
+            self.department_combo.setEnabled(False)
 
         self.department_combo.addItems(new_departments)
 
@@ -192,7 +203,21 @@ class OrderDialog(QDialog):
             self.salary_input = QLineEdit(placeholderText="5000.00")
             self.widgets.append(self.salary_input)
 
+        elif text == "exclusion from kpi":
+            self.widgets.append(QLabel("Starting from:"))
+            self.start_date_input = self.create_date_edit()
+            self.widgets.append(self.start_date_input)
+
+            self.widgets.append(QLabel("End date:"))
+            self.end_date_input = self.create_date_edit()
+            self.widgets.append(self.end_date_input)
+
+            self.selection_button = QPushButton("Select applicable employees")
+            self.selection_button.clicked.connect(self.open_kpi_selection)
+            self.widgets.append(self.selection_button)
+
         else:
+
             self.widgets.append(QLabel("Select employee:"))
 
             # Create employee combo box and store reference
@@ -206,8 +231,11 @@ class OrderDialog(QDialog):
                 self.widgets.append(QLabel("Termination date:"))
             elif text == "salary change":
                 self.widgets.append(QLabel("Salary change date:"))
-            else:
+            elif text == "department change":
                 self.widgets.append(QLabel("Department change date:"))
+            else:
+                self.widgets.append(QLabel("Starting from:"))
+
             self.effective_date_input = self.create_date_edit()
             self.widgets.append(self.effective_date_input)
             if text == "salary change":
@@ -236,6 +264,12 @@ class OrderDialog(QDialog):
                 self.new_departments_combo.addItems(departments)
 
                 self.widgets.append(self.new_departments_combo)
+
+            elif text == "exclusion from kpi":
+                self.widgets.append(QLabel("End date:"))
+                self.end_date_input = self.create_date_edit()
+                self.widgets.append(self.end_date_input)
+
 
 
         return self.widgets
@@ -308,6 +342,17 @@ class OrderDialog(QDialog):
             elif not self.salary_input or not self.salary_input.text().strip():
                 QMessageBox.warning(self, "Missing Information","Employee Salary is required for employment orders!")
                 return
+        elif order_type == "exclusion from kpi":
+            if not hasattr(self,'selected_kpis'):
+                QMessageBox.warning(self, "Missing Information", "No employees and kpis selected!")
+                return
+            else:
+                if self.start_date_input.date() < datetime.now().date():
+                    QMessageBox.warning(self, "Error", "Start date cannot be before current date!")
+                    return
+                elif self.start_date_input.date() > self.end_date_input.date():
+                    QMessageBox.warning(self, "Error", "End date cannot be before start date!")
+                    return
 
         # Generate summary
         summary_text = self.generate_summary_text()
@@ -357,8 +402,9 @@ class OrderDialog(QDialog):
 
         summary.append(
             f"Order Number: {self.order_number_input.text() if hasattr(self, 'order_number_input') and self.order_number_input else 'Not set'}")
-        summary.append(
-            f"Department: {self.department_combo.currentText() if hasattr(self, 'department_combo') and self.department_combo else 'Not set'}")
+        if order_type != "exclusion from kpi":
+            summary.append(
+                f"Department: {self.department_combo.currentText() if hasattr(self, 'department_combo') and self.department_combo else 'Not set'}")
         summary.append(f"Order Type: {order_type}")
         summary.append("")  # Empty line
 
@@ -381,6 +427,15 @@ class OrderDialog(QDialog):
 
             summary.append(
                 f"  Monthly Salary: {self.salary_input.text() if hasattr(self, 'salary_input') and self.salary_input else 'Not set'}")
+        elif order_type == "exclusion from kpi":
+            summary.append("Exclude from kpi:")
+            summary.append(f"Start Date: {self.start_date_input.date().toString('yyyy-MM-dd')}")
+            summary.append(f"End Date: {self.end_date_input.date().toString('yyyy-MM-dd')}")
+            for key, value in self.emp_data.items():
+                value_str = ''
+                for i in value:
+                    value_str += f"{i}, "
+                summary.append(f"{key}: {value_str}")
         else:
             # Non-employment orders
             if hasattr(self, 'employee_combo') and self.employee_combo and self.employee_combo.currentText():
@@ -408,8 +463,24 @@ class OrderDialog(QDialog):
 
         if order_type == "employment":
             self.save_employment_order()
+        elif order_type == "exclusion from kpi":
+            self.save_exclude_from_kpi_order()
         else:
             self.save_non_employment_order(order_type)
+
+    def save_exclude_from_kpi_order(self):
+
+        for i in range(len(self.kpi_data)):
+            self.kpi_data[i]["from_date"] = self.start_date_input.date().toString('yyyy-MM-dd')
+            self.kpi_data[i]["to_date"] = self.end_date_input.date().toString('yyyy-MM-dd')
+            self.kpi_data[i]["order_number"] = self.order_number_input.text()
+            self.kpi_data[i]["order_date"] = self.order_date_input.date().toString('yyyy-MM-dd')
+            self.save_order_record(self.kpi_data[i]['order_number'],self.kpi_data[i]['employee_id'],self.kpi_data[i]['department'],self.kpi_data[i]['order_date'],self.kpi_data[i]['from_date'],self.order_type_combo.currentText(),None,None,None)
+            self.kpi_data[i]['order_id'] = self.order_id
+            self.database.exclude_employee_from_kpi(self.kpi_data[i]['kpi_id'],self.kpi_data[i]["employee_id"],self.kpi_data[i]['from_date'],self.kpi_data[i]["order_number"],self.kpi_data[i]["order_id"],self.kpi_data[i]["to_date"])
+        print("kpi_data with order details: ",self.kpi_data)
+
+
 
     def save_employment_order(self):
         """Save employment order and create new employee"""
@@ -499,6 +570,7 @@ class OrderDialog(QDialog):
         self.save_order_record(
             order_number=self.order_number_input.text(),
             employee_id=employee_id,
+            department = self.department_combo.currentText(),
             order_date=self.order_date_input.date().toString("yyyy-MM-dd"),
             effective_date=employee_data["hire_date"],
             order_action="employment",
@@ -537,15 +609,17 @@ class OrderDialog(QDialog):
         self.save_order_record(
             order_number=self.order_number_input.text(),
             employee_id=employee_id,
+            department = '',
             order_date=self.order_date_input.date().toString("yyyy-MM-dd"),
             effective_date=self.effective_date_input.date().toString(
                 "yyyy-MM-dd") if self.effective_date_input else self.order_date_input.date().toString("yyyy-MM-dd"),
             order_action=order_type,
             new_department = self.new_departments_combo.currentText() if order_type == "department change" else '',
-            new_salary = self.new_salary_input.text().strip() if order_type == "salary change" else ''
+            new_salary = self.new_salary_input.text().strip() if order_type == "salary change" else '',
+
         )
 
-    def save_order_record(self, order_number, employee_id, order_date, effective_date, order_action,new_department,new_salary):
+    def save_order_record(self, order_number, employee_id, department, order_date, effective_date, order_action,new_department,new_salary,new_applicability = ''):
         """Save order to the orders table"""
         conn = None
         try:
@@ -553,11 +627,13 @@ class OrderDialog(QDialog):
             cursor = conn.cursor()
 
             cursor.execute("""
-                           INSERT INTO orders (order_number, employee_id, order_date, effective_date, order_action, new_department, new_salary)
-                           VALUES (?, ?, ?, ?, ?,?,?)
-                           """, (order_number, employee_id, order_date, effective_date, order_action, new_department, new_salary))
+                           INSERT INTO new_orders (order_number, employee_id, department, order_date, effective_date, order_action, new_department, new_salary, new_applicability)
+                           VALUES (?, ?, ?, ?, ?,?,?, ?, ?)
+                           """, (order_number, employee_id, department, order_date, effective_date, order_action, new_department, new_salary,new_applicability))
 
+            order_id = cursor.lastrowid
             conn.commit()
+            self.order_id = order_id
             print(f"DEBUG: Order saved - Number: {order_number}, Employee: {employee_id}, Action: {order_action}")
             return True
         except Exception as e:
@@ -566,6 +642,90 @@ class OrderDialog(QDialog):
         finally:
             if conn:
                 conn.close()
+
+    def employees_for_kpi_exclusion_tree(self):
+        pass
+
+    def open_kpi_selection(self):
+        #self.kpi_editor.open_employee_selection(exclusion = True)
+        window_data = ["employee_selection","Select applicable employees",1,[],[]]
+        selection_dialog = EmployeeSelectionForKPI([],[],window_data)
+        selection_dialog.data_saved.connect(self.on_employee_data_saved)
+        selection_dialog.exec()
+
+    def on_employee_data_saved(self,data):
+
+        employees_list = []
+        departments_list = []
+        for dpt in data["departments"]:
+            if dpt["check_state"] != 0:
+                departments_list.append({"department":dpt["department"],"id":dpt["department"],"field":dpt["department"]})
+                for emp in dpt["employees"]:
+                    if emp["check_state"] == 2:
+                        #emp["employee"] = emp["id"]
+                        #emp["field"] = f'{emp["first_name"]} {emp["last_name"]} {emp["department"]}'
+                        employees_list.append(emp)
+
+        start_date = self.start_date_input.date().toString("yyyy-MM-dd")
+        employees_id=[]
+        for emp in employees_list:
+            employees_id.append(emp["id"])
+        pre_kpi_list =list(map(lambda employee_id, as_of_date = start_date: self.database.get_kpi_list_for_employee(employee_id,as_of_date),employees_id))
+        kpi_list = []
+        for i in pre_kpi_list:
+            for j in i:
+                j["field"] = j["kpi"]
+                kpi_list.append(j)
+
+        lists_for_tree=[departments_list,employees_list,kpi_list]
+        fields_for_tree = ['department',"employee",'kpi']
+        window_data = ["kpi_selection","Select_applicable_kpi",1,lists_for_tree,fields_for_tree]
+
+        kpi_dialog = EmployeeSelectionForKPI([],[],window_data)
+        kpi_dialog.data_saved.connect(self.on_final_kpi_selection)
+        kpi_dialog.exec()
+
+    def on_final_kpi_selection(self,data):
+
+        self.kpi_data = []
+        self.emp_data = {}
+        print("Final KPI selection saved: ",data)
+        self.selected_kpis = data.copy()
+        for key, val in self.selected_kpis.items():
+            print("self.selected_kpis.items",key,val)
+            #print(val["employees"])
+            for dpt in val:
+                print(dpt['employees'])
+                for emp in dpt["employees"]:
+                    print("emp: ",emp)
+                    if emp["kpis"] != []:
+                        self.emp_data[emp["field"]]=[]
+                    for kpi in emp["kpis"]:
+                        print("kpi: ",kpi)
+                        if kpi['check_state'] != 0:
+                            self.kpi_data.append({
+                           "kpi_id":kpi['id'],
+                           "employee_id":kpi['employee'],
+                           "department":dpt['department']
+                            })
+                            self.emp_data[emp["field"]].append(kpi['field'])
+
+        if self.kpi_data == []:
+            QMessageBox.warning(self, "Error", "No kpis selected!")
+            return
+
+        # for kpi in self.kpi_data:
+        #     self.save_order_record(self.order_number_input,self.kpi_data['employee_id'],self.order_date_input,self.from_date_input,self.order_type_combo.currentText())
+        #     self.kpi_data['order_id'] = self.order_id
+
+        print(self.kpi_data)
+        print(self.emp_data)
+
+
+
+
+
+
 
 if __name__ =="__main__":
     app = QApplication(sys.argv)
