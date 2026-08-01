@@ -118,7 +118,7 @@ class MainWindow(QMainWindow):
         config_menu.addAction(kpi_action)
 
         variable_action = QAction("Variables", self)
-        variable_action.triggered.connect(self.create_variable_entry_page)
+        variable_action.triggered.connect(self.open_variables)
         config_menu.addAction(variable_action)
 
         # Help menu
@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
         self.orders_page = self.create_orders_page()
         self.department_page=self.create_department_page()
         self.kpi_page = self.create_kpi_page()
-        #self.manage_variable_page=self.create_variable_page()
+        self.variable_page=self.create_variable_page()
 
 
         # Add pages to stacked widget
@@ -160,7 +160,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.orders_page)
         self.stacked_widget.addWidget(self.department_page)
         self.stacked_widget.addWidget(self.kpi_page)
-        #self.stacked_widget.addWidget(self.manage_variable_page)
+        self.stacked_widget.addWidget(self.variable_page)
 
 
     def create_dashboard_page(self):
@@ -1031,7 +1031,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Manage KPIs")
 
     def open_variables(self):
-        pass
+        self.stacked_widget.setCurrentIndex(7)
+        self.statusBar().showMessage("Manage Variables")
 
     def create_department_page(self):
         self.new_department_page = NewPageTemplate("Manage departments")
@@ -1086,6 +1087,7 @@ class MainWindow(QMainWindow):
         return self.new_department_page
 
     def create_kpi_page(self):
+
         self.new_kpi_page = NewPageTemplate("Manage KPIs")
         self.kpi_table = self.new_department_page.create_qtablewidget_tool(2, ["name", "formula"],
                                                                                    self.edit_kpi,
@@ -1123,7 +1125,18 @@ class MainWindow(QMainWindow):
         return self.new_kpi_page
 
     def create_variable_page(self):
-        pass
+        """ Creates "Manage variables" page at Main menu/Configuration/Variables"""
+        self.new_variable_page = NewPageTemplate("Manage Variables")
+        self.variable_table = self.new_variable_page.create_qtablewidget_tool(2, ["name", "default value"],self.edit_variable,[self.add_variable,self.edit_variable,self.remove_variable])
+
+        central_widgets = [self.variable_table]
+
+        self.new_variable_page.central_widgets = central_widgets
+
+        self.new_variable_page.create_layout()
+
+        return self.new_variable_page
+
 
     def load_departments(self):
         #self.departments_table.clearContents()
@@ -1278,8 +1291,14 @@ class MainWindow(QMainWindow):
     def load_kpis(self):
         self.all_kpi = self.config_manager.get_kpis()
 
+    def add_variable(self):
+        pass
 
+    def edit_variable(self):
+        pass
 
+    def remove_variable(self):
+        pass
 
 
 

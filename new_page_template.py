@@ -37,6 +37,7 @@ class NewPageTemplate(QWidget):
         return self.header_layout
 
     def create_search_and_filters_layout(self):
+
         self.filter_group = QGroupBox("Search and filters")
         if self.search_widgets:
             for widg in self.search_widgets:
@@ -75,10 +76,12 @@ class NewPageTemplate(QWidget):
 
     def create_layout(self):
         self.create_header_layout()
+        #if hasattr(self,'filter_group'):
         self.create_search_and_filters_layout()
         self.create_central_layout()
         self.create_buttons_layout()
         self.layout.addLayout(self.header_layout)
+        #if hasattr(self,'filter_group'):
         self.layout.addWidget(self.filter_group)
         self.layout.addLayout(self.central_layout,stretch = 1)
         self.layout.addLayout(self.button_layout)
