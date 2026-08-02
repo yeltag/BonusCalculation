@@ -1131,7 +1131,29 @@ class MainWindow(QMainWindow):
 
         central_widgets = [self.variable_table]
 
+        list_to_filter = self.database.get_custom_variables()
+        search_fields = ["Name","Description"]
+
+        search_variable_tool = self.new_variable_page.create_search_text_tool(list_to_filter,search_fields,self.variable_table)
+        search_widgets = search_variable_tool
+
+        add_var_btn = QPushButton("Add Variable")
+        add_var_btn.clicked.connect(self.add_variable)
+
+        edit_var_btn = QPushButton("Edit Variable")
+        edit_var_btn.clicked.connect(self.edit_variable)
+
+        deactive_var_btn = QPushButton("Deactive Variable")
+        deactive_var_btn.clicked.connect(self.deactivate_variable)
+
+        remove_var_btn = QPushButton("Remove Variable")
+        remove_var_btn.clicked.connect(self.remove_variable)
+
+        button_widgets = [add_var_btn,edit_var_btn,deactive_var_btn,remove_var_btn]
+
+        self.new_variable_page.search_widgets = search_widgets
         self.new_variable_page.central_widgets = central_widgets
+        self.new_variable_page.button_widgets = button_widgets
 
         self.new_variable_page.create_layout()
 
@@ -1298,6 +1320,9 @@ class MainWindow(QMainWindow):
         pass
 
     def remove_variable(self):
+        pass
+
+    def deactivate_variable(self):
         pass
 
 

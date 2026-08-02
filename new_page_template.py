@@ -209,8 +209,9 @@ class NewPageTemplate(QWidget):
                 element_list = list(element.values())
 
                 for i in range(self.filtered_table.columnCount()):
-                    print(element[self.filtered_table.horizontalHeaderItem(i).text().lower()])
-                    element_item = QTableWidgetItem(str(element[self.filtered_table.horizontalHeaderItem(i).text().lower()]))
+                    print("_".join(self.filtered_table.horizontalHeaderItem(i).text().lower().split(" ")))
+                    print(element["_".join(self.filtered_table.horizontalHeaderItem(i).text().lower().split(" "))])
+                    element_item = QTableWidgetItem(str(element["_".join(self.filtered_table.horizontalHeaderItem(i).text().lower().split(" "))]))
 
                     if "id" in element.keys():
                         element_item.setData(Qt.ItemDataRole.UserRole,element["id"])

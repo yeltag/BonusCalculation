@@ -215,7 +215,8 @@ class Database:
                 default_value TEXT,
                 description TEXT,
                 is_active INTEGER DEFAULT 1,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                created_by TEXT NOT NULL
             )
          ''')
 
@@ -254,7 +255,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS new_orders(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 order_number TEXT NOT NULL,
-                employee_id TEXT,
+                employee_id TEXT DEFAULT NULL,
                 department TEXT,
                 order_date TEXT NOT NULL,
                 effective_date TEXT NOT NULL,
@@ -604,13 +605,13 @@ class Database:
 
 
             # First, check if table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='custom_variables'")
-            table_exists = cursor.fetchone()
-
-            if not table_exists:
-
-                self.init_database() # Re-initialize to create missing table
-                return [] # Return empty list since we just created the table
+            # cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='custom_variables'")
+            # table_exists = cursor.fetchone()
+            #
+            # if not table_exists:
+            #
+            #     self.init_database() # Re-initialize to create missing table
+            #     return [] # Return empty list since we just created the table
 
             cursor.execute('SELECT * FROM custom_variables WHERE is_active = 1 ORDER BY display_name')
             variables = cursor.fetchall()
@@ -625,7 +626,10 @@ class Database:
                     "data_type": var[3],
                     "default_value": var[4],
                     "description": var[5],
-                    "is_active": bool(var[6])
+                    "is_active": bool(var[6]),
+                    "created_at": var[7],
+                    "created_by": var[8]
+
                 })
 
 
