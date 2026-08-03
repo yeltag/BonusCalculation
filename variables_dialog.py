@@ -7,8 +7,9 @@ from PyQt6.QtCore import Qt
 import re
 
 class VariablesDialog(QDialog):
-    def __init__(self, parent=None, variable_data=None, database = None):
+    def __init__(self, username,parent=None, variable_data=None, database = None):
         super().__init__(parent)
+        self.username = username
         self.variable_data = variable_data or {}
         self.database = database
         self.is_edit_mode = variable_data is not None
@@ -194,7 +195,8 @@ class VariablesDialog(QDialog):
             "data_type": data_type,
             "default_value": processed_default_value,  # <-- Changed to use processed value
             "description": description,
-            "is_active": True
+            "is_active": True,
+            "created_by": self.username
         }
 
         self.accept()

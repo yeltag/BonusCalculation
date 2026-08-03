@@ -582,8 +582,8 @@ class Database:
 
         cursor.execute("""
             INSERT OR REPLACE INTO custom_variables
-            (name, display_name, data_type, default_value, description, is_active, created_at)
-            VALUES (?,?,?,?,?,?,?)
+            (name, display_name, data_type, default_value, description, is_active, created_at,created_by)
+            VALUES (?,?,?,?,?,?,?,?)
             """, (
             variable_data["name"],
             variable_data["display_name"],
@@ -591,7 +591,8 @@ class Database:
             variable_data.get("default_value",""),
             variable_data.get("description",""),
             1 if variable_data.get("is_active", True) else 0,
-            current_time
+            current_time,
+            variable_data.get("created_by","")
         ))
 
         conn.commit()

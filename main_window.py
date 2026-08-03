@@ -26,6 +26,7 @@ from variable_entry_widget import VariableEntryWidget
 from order_dialog import OrderDialog
 from new_page_template import NewPageTemplate
 from kpi_editor_dialog import KPIEditorDialog
+from variables_dialog import VariablesDialog
 
 
 class EmployeeTableWidget(QTableWidget):
@@ -1127,11 +1128,15 @@ class MainWindow(QMainWindow):
     def create_variable_page(self):
         """ Creates "Manage variables" page at Main menu/Configuration/Variables"""
         self.new_variable_page = NewPageTemplate("Manage Variables")
-        self.variable_table = self.new_variable_page.create_qtablewidget_tool(2, ["name", "default value"],self.edit_variable,[self.add_variable,self.edit_variable,self.remove_variable])
+        self.variable_table = self.new_variable_page.create_qtablewidget_tool(3, ["name", "default value", "data type"],self.edit_variable,[self.add_variable,self.edit_variable,self.remove_variable])
 
         central_widgets = [self.variable_table]
 
         list_to_filter = self.database.get_custom_variables()
+        for var in list_to_filter:
+            if var["data_type"] == "percentage":
+                var["default_value"] = f"{float(var["default_value"])*100:.2f}%"
+                print(var["default_value"])
         search_fields = ["Name","Description"]
 
         search_variable_tool = self.new_variable_page.create_search_text_tool(list_to_filter,search_fields,self.variable_table)
@@ -1314,7 +1319,20 @@ class MainWindow(QMainWindow):
         self.all_kpi = self.config_manager.get_kpis()
 
     def add_variable(self):
-        pass
+        var_dialog = VariablesDialog(database = self.database, username = self.username)
+
+        if var_dialog.exec() == QDialog.DialogCode.Accepted:
+            new_variable = var_dialog.get_variable_data()
+
+        if new_variable:
+            self.database.save_custom_variable(new_variable)
+            self.load_variables()
+            self.new_variable_page.refresh_with_filters(self.all_variables, self.variable_table)
+            QMessageBox.information(self, "Success", "Variable added successfully!")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to add variable")
+
+
 
     def edit_variable(self):
         pass
@@ -1324,6 +1342,9 @@ class MainWindow(QMainWindow):
 
     def deactivate_variable(self):
         pass
+
+    def load_variables(self):
+        self.all_variables = self.database.get_custom_variables()
 
 
 
