@@ -488,7 +488,7 @@ class KPIEditorDialog(QDialog):
             QMessageBox.information(self, "Formula Test",
                                f"Formula tested successfully!\n\n"
                                     f"test Data:\n"
-                                    f"Base Salary: {test_data["base_salary"]:,.2f}\n"
+                                    f"Base Salary: {test_data['base_salary']:,.2f}\n"
                                     f"{msg_text}"
                                     f"Result: {result}")
 
@@ -922,7 +922,7 @@ class KPIEditorDialog(QDialog):
 
 
 
-                print(f"You typed: {input_field.text()}{order_date.date().toString("yyyy-MM-dd")}")
+                print(f"You typed: {input_field.text()}{order_date.date().toString('yyyy-MM-dd')}")
         else:
             print("Dialog cancelled")
 

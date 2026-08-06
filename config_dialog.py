@@ -136,7 +136,7 @@ class ConfigDialog(QDialog):
         self.kpi_list.clear()
         kips = self.config_manager.get_kpis()
         for kpi in kips:
-            self.kpi_list.addItem(f"{kpi["name"]} ({kpi["calculation_method"]})")
+            self.kpi_list.addItem(f"{kpi['name']} ({kpi['calculation_method']})")
 
     def add_department(self):
         department, ok = QInputDialog.getText(self, "Add Department", "Department name:")

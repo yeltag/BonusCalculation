@@ -1143,7 +1143,7 @@ class MainWindow(QMainWindow):
         search_widgets = search_variable_tool
 
         add_var_btn = QPushButton("Add Variable")
-        add_var_btn.clicked.connect(self.add_variable)
+        add_var_btn.clicked.connect(self.pre_add_variable)
 
         edit_var_btn = QPushButton("Edit Variable")
         edit_var_btn.clicked.connect(self.edit_variable)
@@ -1318,14 +1318,24 @@ class MainWindow(QMainWindow):
     def load_kpis(self):
         self.all_kpi = self.config_manager.get_kpis()
 
+    def pre_add_variable(self):
+        self.current_var = None
+        self.add_variable()
+
     def add_variable(self):
-        var_dialog = VariablesDialog(database = self.database, username = self.username)
+        """Opens Create Custom Variable dialoq,
+        sends created variable to database,
+        initiates refreshing of variables table on "Manage variables" page"""
+
+        var_dialog = VariablesDialog(username = self.username, variable_data = self.current_var, database = self.database, )
 
         if var_dialog.exec() == QDialog.DialogCode.Accepted:
-            new_variable = var_dialog.get_variable_data()
+            self.new_variable = var_dialog.get_variable_data()
+        else:
+            return
 
-        if new_variable:
-            self.database.save_custom_variable(new_variable)
+        if hasattr(self,'new_variable'):
+            self.database.save_custom_variable(self.new_variable)
             self.load_variables()
             self.new_variable_page.refresh_with_filters(self.all_variables, self.variable_table)
             QMessageBox.information(self, "Success", "Variable added successfully!")
@@ -1335,15 +1345,29 @@ class MainWindow(QMainWindow):
 
 
     def edit_variable(self):
-        pass
+        current_row = self.variable_table.currentItem()
+        if current_row:
+            variables_list = self.database.get_custom_variables()
+            for var in variables_list:
+                if var["id"] == current_row.data(Qt.ItemDataRole.UserRole):
+                    self.current_var = var
+
+                    self.add_variable()
+                    return
+        else:
+            QMessageBox.warning(self,"Error","Please select a variable!")
+
 
     def remove_variable(self):
         pass
 
     def deactivate_variable(self):
-        pass
+        separator = ["+","-","*","/","(",")","min","max","round","if","then","else"," "]
+        current_row = self.variable_table.currentItem()
+        formula = current_row.strip()
 
     def load_variables(self):
+        """Loads a list of custom variables from database"""
         self.all_variables = self.database.get_custom_variables()
 
 
