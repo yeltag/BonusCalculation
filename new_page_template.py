@@ -1,8 +1,9 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QLineEdit, QTableWidgetItem,
                              QComboBox, QTableWidget, QHeaderView, QAbstractScrollArea, QMenu, QTreeWidget,
                              QTreeWidgetItem, QCheckBox, QDateEdit, QSizePolicy, QMessageBox)
 
+from PyQt6.QtGui import QColor, QTextCharFormat
 
 from datetime import datetime, date
 import calendar
@@ -160,15 +161,15 @@ class NewPageTemplate(QWidget):
                 self.filtered_elements = []
 
                 combo_box_text = self.combo_box.currentText()
-                if combo_box_text and combo_box_text !="All departments":
+                if combo_box_text and combo_box_text !=self.combo_list[0]:
 
                     for element in filtered_list:
 
-                        if element[self.column_to_filter] == combo_box_text:
+                        if element["_".join(self.column_to_filter.lower().split(" "))] == combo_box_text:
                             self.filtered_elements.append(element)
 
 
-                elif combo_box_text == "All departments":
+                elif combo_box_text == self.combo_list[0]:
                     self.filtered_elements = filtered_list
             else:
                 print("There is no Combo_box")
@@ -183,6 +184,7 @@ class NewPageTemplate(QWidget):
         self.column_to_filter = column_to_filter
         self.filtered_table = filtered_table
         self.list_to_filter = list_to_filter
+        self.combo_list = combo_list
 
 
         self.combo_box.currentTextChanged.connect(lambda text: self.filtering_tool())
@@ -732,9 +734,129 @@ class NewPageTemplate(QWidget):
 
         return date
 
+    def enforce_first_of_the_month(self,selected_date):
+        """ Makes the first of each month the only valid selection for date_widget"""
+
+        forced_date = None
+        if selected_date.day() !=1:
+            if selected_date.month() == 12:
+                month = 1
+            else:
+                month = selected_date.month()+1
+
+            if month == 1:
+                year = selected_date.year()+1
+            else:
+                year = selected_date.year()
+
+            forced_date = QDate(year, month,1)
+        else:
+            forced_date = selected_date
+
+        return forced_date
+
+    def create_inactive_calendar_style(self, date_widget=None):
+        today = date.today().day
+        print(type(today)," ",today)
+
+        start_date = QDate(date.today().year,date.today().month,1)
+
+        end_date = start_date.addYears(5)
+        print("start_date: ",start_date)
+        print("end_date: ",end_date)
+
+        date_widget.setMinimumDate(start_date)
+        #date_widget.setDate(start_date)
+        self.calendar = date_widget.calendarWidget()
+
+
+        self.calendar.setStyleSheet("""
+             /* Remove grey hover background for disabled calendar dates */
+             QCalendarWidget QAbstractItemView::item[day=1] {
+                color: #000000 !important;
+                }
+                
+             QCalendarWidget QAbstractItemView::item: inactive {
+                color: #bebebe !important;
+                }   
+             
+             QCalendarWidget QAbstractItemView {
+                
+                background-color: #f8f8f8; 
+                selection-background-color: transparent;
+                selection_color: #000000}
+                
+             QCalendarWidget QAbstractItemView::item:hover {
+                background-color: #f8f8f8;
+                }
+        """)
+
+
+        try:
+            self.calendar.currentPageChanged.disconnect(self.on_month_changed)
+        except TypeError:
+            pass
+        self.calendar.currentPageChanged.connect(self.on_month_changed)
+        self.on_month_changed(date.today().year, date.today().month)
+        #self.enforce_first_of_the_month(date_widget.date())
+        return date_widget
+
+    def on_month_changed(self, year: int, month: int):
+
+        fmt = QTextCharFormat()
+        #fmt.setBackground(QColor("#f8f8f8"))
+        fmt.setForeground(QColor("#bebebe"))
+        fmt_first = QTextCharFormat()
+        #fmt_first.setBackground(QColor("transparent"))
+        fmt_first.setForeground(QColor("#000000"))
+        visible_dates = self.get_visible_dates_on_page(self.calendar)
+        print(visible_dates)
+
+        for day in visible_dates:
+            if day.day() == 1:
+                print(f"Found 1st: {day} - Month: {day.month()}")
+
+        empty_fmt = QTextCharFormat()
+        for day in visible_dates:
+            self.calendar.setDateTextFormat(day, empty_fmt)
+
+
+
+        for day in visible_dates:
+            if day.day() == 1:
+                print(f"Setting BLACK for: {day}")
+                self.calendar.setDateTextFormat(day, fmt_first)
+            else:
+                print(f"Setting GRAY for: {day}")
+                self.calendar.setDateTextFormat(day, fmt)
+
+        self.calendar.update()
+
+        # while curr <= end_date:
+        #     if curr.day() != 1:
+        #         calendar.setDateTextFormat(curr, fmt)
+
+
+            #curr = curr.addDays(1)
+
+    def get_visible_dates_on_page(self, calendar):
+        year = calendar.yearShown()
+        month = calendar.monthShown()
+        first_of_month = QDate(year, month, 1)
+        print(first_of_month.dayOfWeek())
+        first_day_of_week = calendar.firstDayOfWeek().value
+        print(first_day_of_week)
+        day_offset = (first_of_month.dayOfWeek() - first_day_of_week)%7
+        grid_start_date = first_of_month.addDays(-day_offset)
+        visible_dates = []
+        for i in range(42):
+            current_date = grid_start_date.addDays(i)
+            visible_dates.append(current_date)
+
+        return visible_dates
 
     def check_box_widget (self, tree= None, text = None, item=None, changed_status = None,column=2):
-        """ Creates checkbox widget for the passed tree
+        """ Creates checkbox widget for the passed tree:
         tree - current tree
         text - widget text
         item - current item

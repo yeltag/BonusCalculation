@@ -216,7 +216,10 @@ class Database:
                 description TEXT,
                 is_active INTEGER DEFAULT 1,
                 created_at TEXT NOT NULL,
-                created_by TEXT NOT NULL
+                created_by TEXT NOT NULL,
+                deactivated_from TEXT,
+                deactivated_at TEXT,
+                deactivated_by TEXT
             )
          ''')
 
@@ -614,7 +617,7 @@ class Database:
             #     self.init_database() # Re-initialize to create missing table
             #     return [] # Return empty list since we just created the table
 
-            cursor.execute('SELECT * FROM custom_variables WHERE is_active = 1 ORDER BY display_name')
+            cursor.execute('SELECT * FROM custom_variables ORDER BY is_active DESC')
             variables = cursor.fetchall()
 
             # Convert to list of dictionaries
@@ -629,7 +632,10 @@ class Database:
                     "description": var[5],
                     "is_active": bool(var[6]),
                     "created_at": var[7],
-                    "created_by": var[8]
+                    "created_by": var[8],
+                    "deactivated_from": var[9],
+                    "deactivated_at":var[10],
+                    "deactivated_by":var[11]
 
                 })
 
@@ -664,6 +670,29 @@ class Database:
         except Exception as e:
 
             return False
+
+    def deactivate_custom_variable(self,variable_data):
+        """Deactivates custom variable"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            current_time = datetime.now().isoformat()
+
+            cursor.execute("""
+                UPDATE custom_variables
+                SET is_active = 0,
+                    deactivated_from = ?,
+                    deactivated_at = ?,
+                    deactivated_by = ?
+                WHERE id = ?    
+                    """,(variable_data[0],current_time,variable_data[1],variable_data[2]))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            return False
+
 
     def save_employee_variable_value(self, value_data):
         """Save employee variable value for a specific period"""
