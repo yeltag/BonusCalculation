@@ -858,7 +858,7 @@ class MainWindow(QMainWindow):
 
     def add_order(self,employee=None,order_type = None):
         """Open dialog to add new order"""
-        dialog = OrderDialog(self, None, self.config_manager,employee,order_type)
+        dialog = OrderDialog(self, None, self.config_manager,employee,order_type, self.username)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # Refresh employees list in case a new employee was added
             self.load_employees_from_db()

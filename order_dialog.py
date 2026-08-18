@@ -14,9 +14,10 @@ from kpi_editor_dialog import KPIEditorDialog
 from employees_selection_for_kpi import EmployeeSelectionForKPI
 
 class OrderDialog(QDialog):
-    def __init__(self, parent = None, order_data = None, config_manager = None,employee = None,order_type = None):
+    def __init__(self, parent = None, order_data = None, config_manager = None,employee = None,order_type = None, username = None):
         super().__init__(parent)
 
+        self.username = username
         self.order_data = order_data
         self.order_type = order_type
         self.database = Database()
@@ -615,8 +616,7 @@ class OrderDialog(QDialog):
                 "yyyy-MM-dd") if self.effective_date_input else self.order_date_input.date().toString("yyyy-MM-dd"),
             order_action=order_type,
             new_department = self.new_departments_combo.currentText() if order_type == "department change" else '',
-            new_salary = self.new_salary_input.text().strip() if order_type == "salary change" else '',
-
+            new_salary = self.new_salary_input.text().strip() if order_type == "salary change" else ''
         )
 
     def save_order_record(self, order_number, employee_id, department, order_date, effective_date, order_action,new_department,new_salary,new_applicability = ''):
@@ -627,9 +627,9 @@ class OrderDialog(QDialog):
             cursor = conn.cursor()
 
             cursor.execute("""
-                           INSERT INTO new_orders (order_number, employee_id, department, order_date, effective_date, order_action, new_department, new_salary, new_applicability)
-                           VALUES (?, ?, ?, ?, ?,?,?, ?, ?)
-                           """, (order_number, employee_id, department, order_date, effective_date, order_action, new_department, new_salary,new_applicability))
+                           INSERT INTO new_orders (order_number, employee_id, department, order_date, effective_date, order_action, new_department, new_salary, new_applicability, created_by)
+                           VALUES (?, ?, ?, ?, ?,?,?, ?, ?,?)
+                           """, (order_number, employee_id, department, order_date, effective_date, order_action, new_department, new_salary,new_applicability,self.username))
 
             order_id = cursor.lastrowid
             conn.commit()

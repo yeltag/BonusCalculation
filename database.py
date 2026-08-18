@@ -266,6 +266,7 @@ class Database:
                 new_department TEXT,
                 new_salary TEXT,
                 new_applicability TEXT,
+                created_by TEXT,
                 FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE SET NULL
             )
         ''')
