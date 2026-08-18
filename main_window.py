@@ -1133,15 +1133,7 @@ class MainWindow(QMainWindow):
         central_widgets = [self.variable_table]
 
         list_to_filter = self.load_variables()
-        # for var in list_to_filter:
-        #     if var["data_type"] == "percentage":
-        #         var["default_value"] = f"{float(var["default_value"])*100:.2f}%"
-        #         print(var["default_value"])
-        #     if var["is_active"] == True:
-        #         var["is_active"] = "active"
-        #     else:
-        #         var["is_active"] = "closed"
-        #     print(var["is_active"])
+
         search_fields = ["Name","Description","Is active"]
 
         search_variable_tool = self.new_variable_page.create_search_text_tool(list_to_filter,search_fields,self.variable_table)
@@ -1332,7 +1324,7 @@ class MainWindow(QMainWindow):
         self.current_var = None
         self.add_variable()
 
-    def add_variable(self):
+    def add_variable(self,edit_mode=False):
         """Opens Create Custom Variable dialoq,
         sends created variable to database,
         initiates refreshing of variables table on "Manage variables" page"""
@@ -1348,9 +1340,17 @@ class MainWindow(QMainWindow):
             self.database.save_custom_variable(self.new_variable)
             list_to_filter = self.load_variables()
             self.new_variable_page.refresh_with_filters(list_to_filter, self.variable_table)
-            QMessageBox.information(self, "Success", "Variable added successfully!")
+            if edit_mode:
+                text = "Variable updated sucsessgully!"
+            else:
+                text = "Variable added successfully!"
+            QMessageBox.information(self, "Success", text)
         else:
-            QMessageBox.warning(self, "Error", "Failed to add variable")
+            if edit_mode:
+                text = "Failed to update variable"
+            else:
+                text = "Failed to add variable"
+            QMessageBox.warning(self, "Error", text)
 
 
 
@@ -1362,21 +1362,47 @@ class MainWindow(QMainWindow):
                 if var["id"] == current_row.data(Qt.ItemDataRole.UserRole):
                     self.current_var = var
 
-                    self.add_variable()
+                    self.add_variable(True)
                     return
         else:
             QMessageBox.warning(self,"Error","Please select a variable!")
 
 
     def remove_variable(self):
+        separator = ["+", "-", "*", "/", "(", ")", "min", "max", "round", "if", "then", "else", " "]
+        all_kpis = self.database.get_all_kpis()
+        self.current_var = self.current_var_identification()
+        used_kpi = []
+        for kpi in all_kpis:
+            if self.current_var["name"] in kpi["formula"]:
+                used_kpi.append(kpi["name"])
+        if len(used_kpi) > 0:
+            msg = QMessageBox()
+            msg.setWindowTitle("Variable is not removable")
+            msg.setText(f"The selected variable is used in the following KPIs and cannot be removed:\n{'\n'.join(kpi for kpi in used_kpi)}\nDo you want to deactivate it instead?")
+            msg.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+            yes_button=msg.button(QMessageBox.StandardButton.Yes)
+            yes_button.setText("Deactivate")
+            result = msg.exec()
+            if result == QMessageBox.StandardButton.Yes:
+                self.deactivate_variable()
+            else:
+                return
+
+
+        else:
+            try:
+                self.database.delete_custom_variable(self.current_var['id'])
+                list_to_filter = self.load_variables()
+                self.new_variable_page.refresh_with_filters(list_to_filter, self.variable_table)
+                QMessageBox.information(self, "Success", "Variable deleted successfully!")
+            except:
+                QMessageBox.warning(self, "Error", "Failed to remove variable!")
+
+
         pass
 
-    def deactivate_variable(self):
-        """Makes variable inactive and prevents var from further usage in new kpis"""
-
-        separator = ["+","-","*","/","(",")","min","max","round","if","then","else"," "]
-        all_kpis = self.database.get_all_kpis()
-
+    def current_var_identification(self):
         current_row = self.variable_table.currentItem()
         if current_row:
             variable_id = current_row.data(Qt.ItemDataRole.UserRole)
@@ -1391,52 +1417,62 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Error", "Variable not found!")
                 return
 
-            self.current_var = current_var
-            var_deactive_dialog = QDialog(self)
-            var_deactive_dialog.setWindowTitle("Deactivate variable")
-            var_deactive_dialog.setFixedSize(250,100)
-
-            layout = QVBoxLayout()
-            layout.addWidget(QLabel(f"Deactivate variable {var['display_name']}"))
-
-            date_layout = QHBoxLayout()
-            date_label = QLabel("From date")
-            date_layout.addWidget(date_label)
-            deact_date = self.new_variable_page.date_widget_inner()
-            calendar = deact_date.calendarWidget()
-
-            #self.new_variable_page.create_inactive_calendar_style(deact_date)
-            deact_date.dateChanged.connect(
-                lambda date_val, widget=deact_date: self.on_calendar_date_change(
-                            widget))
-            forced_date = self.new_variable_page.enforce_first_of_the_month(deact_date.date())
-            deact_date.setDate(forced_date)
-
-
-            date_layout.addWidget(deact_date)
-            layout.addLayout(date_layout)
-
-            button_layout = QHBoxLayout()
-            cancel_button = QPushButton("Cancel")
-            deact_button = QPushButton("Deactivate")
-            button_layout.addWidget(cancel_button)
-            button_layout.addWidget(deact_button)
-            #deact_button.clicked.connect(lambda date=deact_date: self.final_deactivate_custom_var(date))
-            layout.addLayout(button_layout)
-
-            var_deactive_dialog.setLayout(layout)
-
-            cancel_button.clicked.connect(var_deactive_dialog.reject)
-            deact_button.clicked.connect(var_deactive_dialog.accept)
-
-            if var_deactive_dialog.exec() == QDialog.DialogCode.Accepted:
-                self.final_deactivate_custom_var(deact_date.date())
-                #forced_date = self.new_variable_page.enforce_first_of_the_month(deact_date.date())
-                print(forced_date)
-            else:
-                return
+            return current_var
         else:
             QMessageBox.warning(self,"Error","Please, select a variable.")
+
+    def deactivate_variable(self):
+        """Makes variable inactive and prevents var from further usage in new kpis"""
+
+
+        self.current_var = self.current_var_identification()
+
+        var_deactive_dialog = QDialog(self)
+        var_deactive_dialog.setWindowTitle("Deactivate variable")
+        var_deactive_dialog.setFixedSize(250,100)
+
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel(f"Deactivate variable {self.current_var['display_name']}"))
+
+        date_layout = QHBoxLayout()
+        date_label = QLabel("From date")
+        date_layout.addWidget(date_label)
+        deact_date = self.new_variable_page.date_widget_inner()
+        calendar = deact_date.calendarWidget()
+
+        #self.new_variable_page.create_inactive_calendar_style(deact_date)
+        deact_date.dateChanged.connect(
+            lambda date_val, widget=deact_date: self.on_calendar_date_change(
+                            widget))
+        forced_date = self.new_variable_page.enforce_first_of_the_month(deact_date.date())
+        deact_date.setDate(forced_date)
+
+
+        date_layout.addWidget(deact_date)
+        layout.addLayout(date_layout)
+
+        button_layout = QHBoxLayout()
+        cancel_button = QPushButton("Cancel")
+        deact_button = QPushButton("Deactivate")
+        button_layout.addWidget(cancel_button)
+        button_layout.addWidget(deact_button)
+        #deact_button.clicked.connect(lambda date=deact_date: self.final_deactivate_custom_var(date))
+        layout.addLayout(button_layout)
+
+        var_deactive_dialog.setLayout(layout)
+
+        cancel_button.clicked.connect(var_deactive_dialog.reject)
+        deact_button.clicked.connect(var_deactive_dialog.accept)
+
+        if var_deactive_dialog.exec() == QDialog.DialogCode.Accepted:
+            success = self.final_deactivate_custom_var(deact_date.date())
+            if success:
+                QMessageBox.information(self, "Success", "Variable deactivated successfully!")
+            else:
+                QMessageBox.warning(self, "Error", "Variable deactivation has failed!")
+        else:
+            return
+
 
     def final_deactivate_custom_var(self,deact_date):
         """Passes variable data to databse for deactivation
@@ -1447,6 +1483,7 @@ class MainWindow(QMainWindow):
         self.database.deactivate_custom_variable(variable_data)
         list_to_filter = self.load_variables()
         self.new_variable_page.refresh_with_filters(list_to_filter,self.variable_table)
+        return True
 
 
     def on_calendar_date_change(self,date_widget):
