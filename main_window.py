@@ -81,6 +81,10 @@ class MainWindow(QMainWindow):
         employees_action.triggered.connect(self.show_employees)
         employees_menu.addAction(employees_action)
 
+        orders_action_old = QAction("Old orders", self)
+        orders_action_old.triggered.connect(self.show_orders_old)
+        employees_menu.addAction(orders_action_old)
+
         orders_action = QAction("Orders", self)
         orders_action.triggered.connect(self.show_orders)
         employees_menu.addAction(orders_action)
@@ -151,6 +155,7 @@ class MainWindow(QMainWindow):
         self.department_page=self.create_department_page()
         self.kpi_page = self.create_kpi_page()
         self.variable_page=self.create_variable_page()
+        self.orders_page_new = self.create_orders_page_new()
 
 
         # Add pages to stacked widget
@@ -162,6 +167,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.department_page)
         self.stacked_widget.addWidget(self.kpi_page)
         self.stacked_widget.addWidget(self.variable_page)
+        self.stacked_widget.addWidget(self.orders_page_new)
 
 
     def create_dashboard_page(self):
@@ -433,6 +439,57 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         page.setLayout(layout)
         return page
+
+    def create_orders_page_new(self):
+        """ Creates 'Manage orders' page using NewPageTemplate"""
+        self.new_orders_page = NewPageTemplate("Manage orders")
+
+        # Central widgets
+        table_columns = ["Order number","Order date","Employee id","Employee name","Department","Order action"]
+
+        self.orders_table = self.new_orders_page.create_qtablewidget_tool(6,table_columns,None,[])
+
+        central_widgets = [self.orders_table]
+
+        # Search widgets
+        search_widgets = []
+
+
+        start_date_label = QLabel("From:")
+        start_date = self.new_orders_page.date_widget_inner()
+        start_date.setDate(datetime.now().date().replace(month = 1, day = 1))
+        end_date_label = QLabel("To:")
+        end_date = self.new_orders_page.date_widget_inner()
+        date1 = [start_date_label,start_date]
+        date2 = [end_date_label,end_date]
+        date_search_tool = self.new_orders_page.date_range_tool(date1,date2,"Order date")
+        search_widgets += date_search_tool
+        #
+        search_fields = ["Employee id","Employee name","Department","Order action"]
+        list_to_filter = self.database.get_all_orders()
+        for ord in list_to_filter:
+            print(ord['employee_id'])
+            if ord["employee_id"] != None:
+                emp = self.database.get_employee_by_id(ord["employee_id"])
+                emp_name = f'{emp["last_name"]} {emp["first_name"]} {emp["father_name"]}'
+            else:
+                emp_name = None
+            ord['employee_name'] = emp_name
+        search_text_tool = self.new_orders_page.create_search_text_tool(list_to_filter,search_fields,self.orders_table)
+
+        combo_list = ["All orders", "employment", "termination", "salary change", "department change", "exclusion from kpi", "new kpi applicability"]
+        combo_list_label = "Select order type:"
+        combo_tool = self.new_orders_page.combo_box_tool(combo_list_label,combo_list,self.orders_table,"Order action",list_to_filter)
+
+        search_widgets += search_text_tool + combo_tool
+
+        self.new_orders_page.search_widgets = search_widgets
+        self.new_orders_page.central_widgets = central_widgets
+
+        self.new_orders_page.create_layout()
+
+        return self.new_orders_page
+
 
     def create_orders_page(self):
         page = QWidget()
@@ -852,9 +909,13 @@ class MainWindow(QMainWindow):
         actual_working_days = self.calculate_actual_working_days(year, month)
         self.working_days_spin.setValue(actual_working_days)
 
-    def show_orders(self):
+    def show_orders_old(self):
         self.stacked_widget.setCurrentIndex(4)
         self.load_orders_from_db()
+
+    def show_orders(self):
+        self.stacked_widget.setCurrentIndex(8)
+
 
     def add_order(self,employee=None,order_type = None):
         """Open dialog to add new order"""
@@ -1050,12 +1111,13 @@ class MainWindow(QMainWindow):
         search_fields = ["Department","Status"]
 
         search_text_tool = self.new_department_page.create_search_text_tool(list_to_filter,search_fields,self.departments_table)
-
+        print(type(search_text_tool))
 
         # combo_box
         combo_list = ["All departments","active","closed"]
         combo_box_label = "Select department status:"
         combo_tool = self.new_department_page.combo_box_tool(combo_box_label,combo_list,self.departments_table,"Status",list_to_filter)
+        print(type(combo_tool))
 
         search_widgets = search_text_tool + combo_tool
 

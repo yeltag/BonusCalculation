@@ -907,14 +907,15 @@ class Database:
                 orders_dict = {
                     "id": str(ord[col_index["id"]]),
                     "order_number": str(ord[col_index["order_number"]]),
-                    "employee_id": str(ord[col_index["employee_id"]]),
+                    "employee_id": ord[col_index["employee_id"]],
                     "department":str(ord[col_index["department"]]),
                     "order_date": str(ord[col_index["order_date"]]),
                     "effective_date": str(ord[col_index["effective_date"]]),
                     "order_action": str(ord[col_index["order_action"]]),
                     "new_department": str(ord[col_index["new_department"]]),
                     "new_salary":str(ord[col_index["new_salary"]]),
-                    "new_applicability":str(ord[col_index["new_applicability"]])
+                    "new_applicability":str(ord[col_index["new_applicability"]]),
+                    'created_by':str(ord[col_index["created_by"]]),
                 }
 
                 order_list.append(orders_dict)

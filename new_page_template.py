@@ -173,6 +173,20 @@ class NewPageTemplate(QWidget):
                     self.filtered_elements = filtered_list
             else:
                 print("There is no Combo_box")
+            if hasattr(self, "date_search_tool"):
+                if len(self.filtered_elements) < len(self.list_to_filter):
+                    filtered_list = self.filtered_elements.copy()
+                else:
+                    filtered_list = self.list_to_filter.copy()
+                self.filtered_elements = []
+                for element in filtered_list:
+                    print(element)
+                    print(element["_".join(self.date_column.lower().split(" "))])
+                    element_date = date.fromisoformat(element["_".join(self.date_column.lower().split(" "))])
+                    print(element_date,self.search_date1.date())
+                    if element_date >= self.search_date1.date() and element_date <= self.search_date2.date():
+                        self.filtered_elements.append(element)
+
 
             print("filtered elements: ",self.filtered_elements)
             self.display_elements(self.filtered_elements,self.filtered_table)
@@ -192,6 +206,17 @@ class NewPageTemplate(QWidget):
         search_widgets_extention = [combo_label,self.combo_box]
 
         return search_widgets_extention
+
+    def date_range_tool (self, date1, date2, date_column):
+        self.date_label1 = date1[0]
+        self.search_date1 = date1[1]
+        self.date_label2 = date2[0]
+        self.search_date2 = date2[1]
+        self.date_search_tool = True
+        self.date_column = date_column
+        self.search_date1.dateChanged.connect(lambda date_val:self.filtering_tool())
+        self.search_date2.dateChanged.connect(lambda date_val:self.filtering_tool())
+        return (self.date_label1,self.search_date1,self.date_label2,self.search_date2)
 
 
     def display_elements(self,elements,filtered_table):
