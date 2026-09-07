@@ -1600,19 +1600,19 @@ class Database:
             conn.close()
 
     def save_order_record(self, order_number, employee_id, department, order_date, effective_date, order_action, new_department,
-                          new_salary,new_applicability):
+                          new_salary,new_applicability,username):
         """Save order to the orders table"""
         conn = None
         try:
-            conn = sqlite3.connect(self.database.db_path)
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
             cursor.execute("""
                            INSERT INTO new_orders (order_number, employee_id, department, order_date, effective_date, order_action,
-                                               new_department, new_salary,new_applicability)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                               new_department, new_salary,new_applicability,created_by)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)
                            """, (order_number, employee_id, department, order_date, effective_date, order_action, new_department,
-                                 new_salary, new_applicability))
+                                 new_salary, new_applicability,username))
 
             order_id = cursor.lastrowid
             conn.commit()

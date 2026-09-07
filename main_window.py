@@ -466,15 +466,36 @@ class MainWindow(QMainWindow):
         search_widgets += date_search_tool
         #
         search_fields = ["Employee id","Employee name","Department","Order action"]
-        list_to_filter = self.database.get_all_orders()
-        for ord in list_to_filter:
-            print(ord['employee_id'])
-            if ord["employee_id"] != None:
-                emp = self.database.get_employee_by_id(ord["employee_id"])
-                emp_name = f'{emp["last_name"]} {emp["first_name"]} {emp["father_name"]}'
-            else:
-                emp_name = None
-            ord['employee_name'] = emp_name
+        list_to_filter = self.load_orders_from_db()
+
+        # list_to_filter = self.database.get_all_orders()
+        # print("list_to_filter", list_to_filter)
+        # for ord in list_to_filter:
+        #     print(ord['employee_id'])
+        #     if ord["employee_id"] != "":
+        #         emp = self.database.get_employee_by_id(ord["employee_id"])
+        #         emp_name = f'{emp["last_name"]} {emp["first_name"]} {emp["father_name"]}'
+        #     else:
+        #         emp_name = ""
+        #     ord['employee_name'] = emp_name
+        ord_num = list_to_filter[0]['order_number']
+        # orders_list = []
+        # int_order_list= []
+        # for ord in list_to_filter:
+        #     if ord["order_number"] == ord_num:
+        #         int_order_list.append(ord)
+        #     else:
+        #         orders_list.append(int_order_list)
+        #         ord_num = ord['order_number']
+        #         int_order_list = []
+        #         int_order_list.append(ord)
+        # print("orders_list: ",orders_list)
+        # emp = orders_list[0][0]['employee_id']
+        # dept = None
+        # for order in orders_list:
+        #     if order
+
+
         search_text_tool = self.new_orders_page.create_search_text_tool(list_to_filter,search_fields,self.orders_table)
 
         combo_list = ["All orders", "employment", "termination", "salary change", "department change", "exclusion from kpi", "new kpi applicability"]
@@ -915,6 +936,7 @@ class MainWindow(QMainWindow):
 
     def show_orders(self):
         self.stacked_widget.setCurrentIndex(8)
+        #self.load_orders_from_db()
 
 
     def add_order(self,employee=None,order_type = None):
@@ -925,7 +947,8 @@ class MainWindow(QMainWindow):
             self.load_employees_from_db()
 
             # Refresh orders list after adding new order
-            self.load_orders_from_db()
+            list_to_filter = self.load_orders_from_db()
+            self.new_orders_page.refresh_with_filters(list_to_filter,self.orders_table)
             QMessageBox.information(self, "Success", "Order added successfully!")
         else:
             print("DEBUG: Order dialog cancelled or closed")
@@ -996,20 +1019,23 @@ class MainWindow(QMainWindow):
 
     def load_orders_from_db(self):
         """Load orders from database"""
-        try:
-            self.all_orders = self.database.get_all_orders()
-            if self.all_orders is None:
-                self.all_orders = []
-        except Exception as e:
+        list_to_filter = self.database.get_all_orders()
+        print("list_to_filter", list_to_filter)
+        for ord in list_to_filter:
+            print(ord['employee_id'])
+            if ord["employee_id"] != "":
+                emp = self.database.get_employee_by_id(ord["employee_id"])
+                emp_name = f'{emp["last_name"]} {emp["first_name"]} {emp["father_name"]}'
+            else:
+                emp_name = ""
+            ord['employee_name'] = emp_name
 
-            self.all_orders = []
-
-        self.filter_orders()  # Apply current filters
+        return list_to_filter
 
         # Update status bar
-        total_orders = len(self.all_orders)
-        displayed_orders = self.orders_table.rowCount()
-        self.statusBar().showMessage(f"Loaded {total_orders} total orders, showing {displayed_orders} after filtering")
+        # total_orders = len(self.all_orders)
+        # displayed_orders = self.orders_table.rowCount()
+        # self.statusBar().showMessage(f"Loaded {total_orders} total orders, showing {displayed_orders} after filtering")
 
     def display_orders(self, orders):
         """Display orders in table"""
@@ -1363,6 +1389,8 @@ class MainWindow(QMainWindow):
 
         dialog = KPIEditorDialog(self, self.current_kpi if self.current_kpi else None, self.config_manager, database=self.database,username = self.username)
 
+        dialog.data_saved.connect(self.on_kpi_applicability_order_added)
+
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_kpi = dialog.get_kpi_data()
 
@@ -1566,6 +1594,8 @@ class MainWindow(QMainWindow):
                 var["is_active"] = "closed"
         return list_to_filter
 
-
+    def on_kpi_applicability_order_added(self,order_added):
+        list_to_filter = self.load_orders_from_db()
+        self.new_orders_page.refresh_with_filters(list_to_filter,self.orders_table)
 
 

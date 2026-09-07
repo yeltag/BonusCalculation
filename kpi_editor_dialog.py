@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdi
                              QPushButton, QComboBox, QListWidget, QListWidgetItem, QMessageBox,
                              QGroupBox, QSplitter, QFrame, QScrollArea, QDialogButtonBox, QDateEdit, QTableWidgetItem)
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer,pyqtSignal
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QPalette
 import re
 from employees_selection_for_kpi import EmployeeSelectionForKPI
@@ -55,6 +55,8 @@ class FormulaHighlighter(QSyntaxHighlighter):
                 self.setFormat(start, end - start, format)
 
 class KPIEditorDialog(QDialog):
+    data_saved = pyqtSignal(bool)
+
     def __init__(self, parent = None, kpi_data = None, config_manager = None, database = None,username = None):
         super().__init__(parent)
         self.kpi_data = kpi_data or {}
@@ -660,25 +662,31 @@ class KPIEditorDialog(QDialog):
             order_result = order_reply.exec()
 
             if order_result == QMessageBox.StandardButton.Yes:
-                success = self.database.save_kpi_with_applicability(
-                    kpi_data,
-                    departments=self.selected_departments if self.selected_departments else None,
-                    employees=self.selected_employees if self.selected_employees else None,
+                order_success = self.kpi_applicability_order()
+                if order_success:
 
-                    excluded_employees=None,
-                    new_order = True,
-                    username = self.username)
+                    success = self.database.save_kpi_with_applicability(
+                        kpi_data,
+                        departments=self.selected_departments if self.selected_departments else None,
+                        employees=self.selected_employees if self.selected_employees else None,
 
-                if success:
-                    self.kpi_data = kpi_data
-                    self.accept()
+                        excluded_employees=None,
+                        new_order = True,
+                        username = self.username)
+
+                    if success:
+                        self.kpi_data = kpi_data
+                        self.data_saved.emit(True)
+                        self.accept()
+                    else:
+                        QMessageBox.critical(self,"Save Error", "Failed to save KPI to database")
+
+                    #self.kpi_applicability_order()
                 else:
-                    QMessageBox.critical(self,"Save Error", "Failed to save KPI to database")
-
-                self.kpi_applicability_order()
+                    return
 
             else:
-                print("Order cancelled")
+                return
 
         else:
 
@@ -882,9 +890,9 @@ class KPIEditorDialog(QDialog):
         table_elements = []
 
         for dept in self.dept_changes:
-            table_elements.append({header_labels[0].lower():dept[0],header_labels[1].lower():dept[1],header_labels[2].lower():dept[2],header_labels[3].lower():dept[3],"id":dept[0],"type":"department"})
+            table_elements.append({"_".join(header_labels[0].lower().split(" ")):dept[0],"_".join(header_labels[1].lower().split(" ")):dept[1],"_".join(header_labels[2].lower().split(" ")):dept[2],"_".join(header_labels[3].lower().split(" ")):dept[3],"id":dept[0],"type":"department"})
         for emp in self.emp_changes:
-            table_elements.append({header_labels[0].lower():emp[0],header_labels[1].lower():emp[1],header_labels[2].lower():emp[2],header_labels[3].lower():emp[3],"id":emp[4],"type":"employee"})
+            table_elements.append({"_".join(header_labels[0].lower().split(" ")):emp[0],"_".join(header_labels[1].lower().split(" ")):emp[1],"_".join(header_labels[2].lower().split(" ")):emp[2],"_".join(header_labels[3].lower().split(" ")):emp[3],"id":emp[4],"type":"employee"})
 
         print("table_elements: ",table_elements)
         kpi_changes_table = NewPageTemplate.create_qtablewidget_tool(self,4,header_labels,None,None)
@@ -908,23 +916,23 @@ class KPIEditorDialog(QDialog):
                 for line in table_elements:
                     if line['type'] == 'department':
                         department = line['id']
-                        employee = ''
-                        new_applicability = json.dumps([line['changed field'], line['new value'], department])
+                        employee = ""
+                        new_applicability = json.dumps([self.kpi_data['name'],line['changed_field'], line['new_value'], department])
                     else:
 
                         employee = line["id"]
                         department = self.database.get_employee_by_id(employee)['department']
-                        new_applicability = json.dumps([line['changed field'], line['new value'], employee])
+                        new_applicability = json.dumps([self.kpi_data['name'],line['changed_field'], line['new_value'], employee])
                     order_action = "new kpi applicability"
 
-                    Database.save_order_record(self,order_number,employee, department, order_date_str,order_date_str,order_action,"","",new_applicability)
+                    self.database.save_order_record(order_number,employee, department, order_date_str,order_date_str,order_action,"","",new_applicability,self.username)
 
-
+                return True
 
 
                 print(f"You typed: {input_field.text()}{order_date.date().toString('yyyy-MM-dd')}")
         else:
-            print("Dialog cancelled")
+            return False
 
 
 
