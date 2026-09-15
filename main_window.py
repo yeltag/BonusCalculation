@@ -1021,6 +1021,8 @@ class MainWindow(QMainWindow):
         """Load orders from database"""
         list_to_filter = self.database.get_all_orders()
         print("list_to_filter", list_to_filter)
+        new_list_to_filter = []
+        list_to_filter_last = []
         for ord in list_to_filter:
             print(ord['employee_id'])
             if ord["employee_id"] != "":
@@ -1030,7 +1032,79 @@ class MainWindow(QMainWindow):
                 emp_name = ""
             ord['employee_name'] = emp_name
 
-        return list_to_filter
+        if len(list_to_filter) > 0:
+
+            full_order = []
+            order_num = list_to_filter[0]["order_number"]
+            for order in list_to_filter:
+                if order["order_number"] == order_num:
+                    full_order.append(order)
+                else:
+                    new_list_to_filter.append(full_order)
+                    full_order = []
+                    order_num = order["order_number"]
+                    full_order.append(order)
+            new_list_to_filter.append(full_order)
+
+            print(new_list_to_filter)
+
+
+            for order in new_list_to_filter:
+                updated_order = {'id':[],'order_number':order[0]['order_number'],'employee_id':[],'department':[],'order_date':order[0]['order_date'],'effective_date':[],'order_action':[],'new_department':[],'new_salary':[],'new_applicability':[],'created_by':order[0]["created_by"],'employee_name':[]}
+                for order_line in order:
+                    updated_order['id'].append(order_line["id"])
+                    updated_order['employee_id'].append(order_line["employee_id"])
+                    updated_order['department'].append(order_line["department"])
+                    updated_order['effective_date'].append(order_line["effective_date"])
+                    updated_order['order_action'].append(order_line["order_action"])
+                    updated_order['new_department'].append(order_line["new_department"])
+                    updated_order['new_salary'].append(order_line["new_salary"])
+                    updated_order['new_applicability'].append(order_line["new_applicability"])
+                    updated_order['employee_name'].append(order_line["employee_name"])
+                list_to_filter_last.append(updated_order)
+
+            print(list_to_filter_last)
+
+            list_to_filter1 = []
+            for order in list_to_filter_last:
+                order_last = {}
+                order_last['id']=order['id']
+                order_last['order_number'] = order['order_number']
+                order_last['order_date'] = order['order_date']
+                order_last['effective_date'] = order['effective_date']
+                order_last['new_department'] = order['new_department']
+                order_last['new_salary'] = order['new_salary']
+                order_last['new_applicability'] = order['new_applicability']
+                order_last['created_by'] = order['created_by']
+                order_last['employee_id'] = self.create_value_for_order_table(order,order_last,'employee_id')
+                order_last['employee_name'] = self.create_value_for_order_table(order,order_last,'employee_name')
+                order_last['department'] = self.create_value_for_order_table(order, order_last, 'department')
+                order_last['order_action'] = self.create_value_for_order_table(order, order_last, 'order_action')
+                list_to_filter1.append(order_last)
+
+        print(list_to_filter)
+        print(new_list_to_filter)
+        print(list_to_filter_last)
+        print(list_to_filter1)
+        return list_to_filter1
+
+    def create_value_for_order_table(self,order,order_last,field):
+        if type(order[field])== list:
+
+            order_last[field] = order[field][0]
+        else:
+            order_last[field]= order[field]
+        if len(order[field]) > 1:
+            for val in order[field]:
+                if order_last[field] != "" and order_last[field] != "''":
+                    if val != order_last[field]:
+                        order_last[field] = "<...>"
+                elif val != "" and val != "''":
+                    order_last[field] = "<...>"
+
+        print(order_last[field])
+        return order_last[field]
+
 
         # Update status bar
         # total_orders = len(self.all_orders)
